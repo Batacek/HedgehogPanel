@@ -16,4 +16,9 @@
         </Content>
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="API\" />
+      <Folder Include="Core\" />
+    </ItemGroup>
+
 </Project>

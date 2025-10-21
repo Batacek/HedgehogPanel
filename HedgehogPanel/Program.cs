@@ -1,17 +1,25 @@
 using Microsoft.Extensions.FileProviders;
 
-var builder = WebApplication.CreateBuilder(args);
+namespace HedgehogPanel;
 
-var app = builder.Build();
-
-app.UseStaticFiles(new StaticFileOptions
+class Program
 {
-    FileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.ContentRootPath, "html")),
-    RequestPath = "/html"
-});
+    public static void Main(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
 
-app.MapGet("/", (IWebHostEnvironment env) =>
-    Results.File(Path.Combine(env.ContentRootPath, "html", "index.html"), "text/html; charset=utf-8")
-);
+        var app = builder.Build();
 
-app.Run();
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.ContentRootPath, "html")),
+            RequestPath = "/html"
+        });
+
+        app.MapGet("/", (IWebHostEnvironment env) =>
+            Results.File(Path.Combine(env.ContentRootPath, "html", "index.html"), "text/html; charset=utf-8")
+        );
+
+        app.Run();
+    }
+}
