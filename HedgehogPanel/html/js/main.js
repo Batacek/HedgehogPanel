@@ -2,6 +2,7 @@
 const Routes = {
   home: "/html/components/MainContent/Home.html",
   servers: "/html/components/MainContent/Servers.html",
+  services: "/html/components/MainContent/Services.html",
 };
 
 function setActiveNav(pageKey) {
@@ -26,7 +27,27 @@ function resolvePageUrl(pageKeyOrPath) {
   return `/html/components/MainContent/${cap}.html`;
 }
 
+function normalizeRouteKey(input) {
+  if (!input) return null;
+  const val = String(input).trim();
+  const lower = val.toLowerCase();
+  // Match case-insensitively to known route keys
+  const key = Object.keys(Routes).find(k => k.toLowerCase() === lower);
+  if (key) return key;
+  // If a path was provided, map it back to a key
+  if (lower.includes('/') || lower.endsWith('.html')) {
+    const match = Object.keys(Routes).find(k => resolvePageUrl(k) === resolvePageUrl(val));
+    if (match) return match;
+  }
+  // Try to derive from basename (e.g., "/.../Home.html" → "home")
+  const base = lower.replace(/\\/g, '/').split('/').pop().replace('.html', '');
+  const key2 = Object.keys(Routes).find(k => k.toLowerCase() === base);
+  return key2 || null;
+}
+
 async function loadPage(pageKeyOrPath) {
+  const intendedKey = normalizeRouteKey(pageKeyOrPath);
+  if (intendedKey) setActiveNav(intendedKey);
   const url = resolvePageUrl(pageKeyOrPath);
   try {
     const res = await fetch(url, { cache: 'no-cache' });
@@ -40,8 +61,8 @@ async function loadPage(pageKeyOrPath) {
     const el = document.getElementById('main-content');
     if (el) el.innerHTML = `<div class="card"><h2>Load error</h2><p>Could not load: ${url}</p></div>`;
   }
-  const key = Object.keys(Routes).find(k => resolvePageUrl(k) === url) || null;
-  if (key) setActiveNav(key);
+  const keyFromUrl = Object.keys(Routes).find(k => resolvePageUrl(k) === url) || null;
+  if (keyFromUrl && keyFromUrl !== intendedKey) setActiveNav(keyFromUrl);
 }
 
 async function loadComponent(targetId, url) {
