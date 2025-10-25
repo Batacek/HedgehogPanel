@@ -142,12 +142,21 @@ function initTopbarInteractions() {
     }
   });
 
-  menu.addEventListener('click', (e) => {
+  menu.addEventListener('click', async (e) => {
     const item = e.target.closest('.menu-item');
     if (!item) return;
     const action = item.dataset.action;
-    console.log('User menu action:', action);
     closeMenu();
+    if (action === 'logout') {
+      try {
+        await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+      } catch (err) {
+      } finally {
+        window.location.href = '/html/login.html';
+      }
+    } else {
+      console.log('User menu action:', action);
+    }
   });
 }
 

@@ -17,10 +17,11 @@ Hedgehog Panel consists of two main components:
 ## Technologies
 
 | Component | Language / Framework |
-|------------|----------------------|
-| Backend | C# (.NET 8)          |
-| Daemon | Rust                 |
-| Frontend | HTML/CSS/JS          |
+|-----------|----------------------|
+| Backend   | C# (.NET 8)          |
+| Daemon    | Rust                 |
+| Frontend  | HTML/CSS/JS          |
+| Database  | PostreSQL            |
 
 ---
 
