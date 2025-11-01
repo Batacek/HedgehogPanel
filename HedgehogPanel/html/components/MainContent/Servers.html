@@ -1,4 +1,91 @@
 <section class="card">
   <h1>Servers</h1>
-  <p>This is a Servers view. Use the sidebar to navigate between sections without reloading the page.</p>
+  <div id="servers-status" role="status">Loading servers…</div>
+  <ul id="servers-list" class="server-list" aria-live="polite"></ul>
 </section>
+<script>
+(async function() {
+  const statusEl = document.getElementById('servers-status');
+  const listEl = document.getElementById('servers-list');
+
+  function renderItem(srv) {
+    const li = document.createElement('li');
+    li.className = 'server-item';
+    li.innerHTML = `
+      <div class="server-main">
+        <strong class="server-name">${srv.name}</strong>
+        <span class="server-status ${srv.status}">${srv.status}</span>
+      </div>
+      <div class="server-meta">
+        <span title="Owner">👤 ${srv.owner}</span>
+        <span title="Your role">🔑 ${srv.role}</span>
+      </div>
+      <div class="server-actions">
+        <button type="button" disabled title="Open (stub)">Open</button>
+      </div>
+    `;
+    return li;
+  }
+
+  try {
+    const res = await fetch('/api/servers', { credentials: 'same-origin', cache: 'no-cache' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    listEl.innerHTML = '';
+    if (Array.isArray(data) && data.length) {
+      data.forEach(s => listEl.appendChild(renderItem(s)));
+      statusEl.textContent = `${data.length} server(s)`;
+    } else {
+      statusEl.textContent = 'No servers to show.';
+    }
+  } catch (err) {
+    console.error('Failed to load servers', err);
+    statusEl.textContent = 'Failed to load servers.';
+  }
+})();
+</script>
+<style>
+  /* Match dark theme palette and spacing */
+  #servers-status { color: var(--muted); margin-top: 6px; }
+  .server-list { list-style: none; padding: 0; margin: 0.5rem 0 0; display: grid; gap: 10px; }
+  .server-item {
+    padding: 12px 14px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: var(--radius-sm);
+    background: linear-gradient(180deg, var(--panel-2), #1b1e23);
+    display: grid;
+    gap: 8px;
+    box-shadow: var(--shadow);
+  }
+  .server-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .server-name { font-size: 1.06rem; }
+  .server-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    text-transform: capitalize;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.06);
+  }
+  .server-status.running {
+    background: rgba(85,107,47,0.18);
+    color: var(--mud-green-2);
+    border-color: rgba(85,107,47,0.5);
+  }
+  .server-status.stopped {
+    background: rgba(122,46,42,0.18);
+    color: var(--accent-red-2);
+    border-color: rgba(122,46,42,0.5);
+  }
+  .server-meta { color: var(--muted); display: flex; gap: 14px; font-size: 0.92rem; }
+  .server-actions { margin-top: 4px; }
+  .server-actions button {
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset;
+  }
+</style>

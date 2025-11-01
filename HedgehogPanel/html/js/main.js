@@ -54,7 +54,23 @@ async function loadPage(pageKeyOrPath) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
     const el = document.getElementById('main-content');
-    if (el) el.innerHTML = html;
+    if (el) {
+      el.innerHTML = html;
+      const scripts = Array.from(el.querySelectorAll('script'));
+      for (const oldScript of scripts) {
+        const newScript = document.createElement('script');
+        for (const attr of oldScript.attributes) {
+          newScript.setAttribute(attr.name, attr.value);
+        }
+        if (oldScript.src) {
+          newScript.src = oldScript.src;
+          newScript.async = false;
+        } else {
+          newScript.textContent = oldScript.textContent;
+        }
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+      }
+    }
     console.log('Loaded page', url);
   } catch (e) {
     console.error('Failed to load page', url, e);
