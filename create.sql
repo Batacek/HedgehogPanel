@@ -63,15 +63,19 @@ CREATE TABLE services (
 
 -- Server owners (many-to-many: users & groups)
 CREATE TABLE server_owners (
-                               server_uuid UUID NOT NULL,
-                               user_uuid UUID NULL,
-                               group_uuid UUID NULL,
+                               server_uuid UUID PRIMARY KEY,
+                               user_uuid UUID,
+                               group_uuid UUID,
                                assigned_at TIMESTAMP DEFAULT now(),
-                               PRIMARY KEY (server_uuid, user_uuid, group_uuid),
                                FOREIGN KEY (server_uuid) REFERENCES servers(uuid) ON DELETE CASCADE,
                                FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE,
-                               FOREIGN KEY (group_uuid) REFERENCES groups(uuid) ON DELETE CASCADE
+                               FOREIGN KEY (group_uuid) REFERENCES groups(uuid) ON DELETE CASCADE,
+                               CHECK (
+                                   (user_uuid IS NOT NULL AND group_uuid IS NULL)
+                                       OR (user_uuid IS NULL AND group_uuid IS NOT NULL)
+                                   )
 );
+
 
 -- Service owners (many-to-many: users & groups)
 CREATE TABLE service_owners (
