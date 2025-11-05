@@ -1,3 +1,6 @@
+using HedgehogPanel.Services;
+using HedgehogPanel.UserManagment;
+
 namespace HedgehogPanel.Servers;
 
 public class Server
@@ -10,4 +13,16 @@ public class Server
     public UserManagment.Account? OwnerAccount { get; private set; }
     public UserManagment.Group? OwnerGroup { get; private set; }
     public DateTime CreatedAt { get; private set; }
+
+    internal Server(Guid guid, byte id, string name, ServerConfig config, Service[] services, Account? ownerAccount, Group? ownerGroup, DateTime createdAt)
+    {
+        GUID = guid;
+        Id = id;
+        Name = name;
+        Config = config;
+        Services = services;
+        OwnerAccount = ownerAccount;
+        OwnerGroup = ownerGroup;
+        CreatedAt = createdAt;
+    }
 }

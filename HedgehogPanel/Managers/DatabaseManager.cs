@@ -5,7 +5,7 @@ namespace HedgehogPanel.Managers;
 
 public class DatabaseManager
 {
-    private readonly string _connectionString;
+    public readonly string _connectionString;
     private readonly string _dbName;
     private readonly string _dbUser;
     private readonly string _dbPass;
