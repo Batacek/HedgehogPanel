@@ -24,5 +24,4 @@ Hedgehog Panel consists of two main components:
 | Daemon    | Rust                 |
 | Frontend  | HTML/CSS/JS          |
 | Database  | PostreSQL            |
-u
 
