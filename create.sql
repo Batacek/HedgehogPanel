@@ -97,3 +97,22 @@ VALUES
 
 -- Check inserted users
 SELECT * FROM users;
+
+-- Insert default servers
+INSERT INTO servers (name, description, created_at)
+VALUES ('Main Server', 'Primary production server', NOW()),
+       ('Backup Server', 'Backup and redundancy server', NOW()),
+       ('Development Server', 'Development and testing environment', NOW());
+
+-- Assign servers to admin user (using subquery to get admin's UUID)
+INSERT INTO server_owners (server_uuid, user_uuid, group_uuid)
+SELECT s.uuid, u.uuid, NULL
+FROM servers s
+         CROSS JOIN users u
+WHERE u.username = 'admin';
+
+-- Check inserted servers and their ownership
+SELECT s.name, u.username, s.description
+FROM servers s
+         JOIN server_owners so ON s.uuid = so.server_uuid
+         JOIN users u ON so.user_uuid = u.uuid;
