@@ -30,9 +30,10 @@ public static class AccountManager
         var last = reader.IsDBNull(5) ? null : reader.GetString(5);
         var email = reader.GetString(2);
         var uname = reader.GetString(1);
+        var guid = reader.GetGuid(0);
 
         byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new UserManagment.Account(id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
+        var acc = new UserManagment.Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
         return acc;
     }
@@ -53,8 +54,9 @@ public static class AccountManager
         var last = reader.IsDBNull(5) ? null : reader.GetString(5);
         var email = reader.GetString(2);
         var uname = reader.GetString(1);
+        var guid = reader.GetGuid(0);
         byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new UserManagment.Account(id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
+        var acc = new UserManagment.Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
         return acc;
     }
@@ -69,7 +71,7 @@ public static class AccountManager
         await conn.OpenAsync();
         const string sql = @"INSERT INTO users (username, email, firstname, middlename, lastname, password_hash)
                               VALUES (@u, @e, @f, @m, @l, encode(digest(@p, 'sha256'), 'hex'))
-                              RETURNING username, email, firstname, middlename, lastname";
+                              RETURNING uuid, username, email, firstname, middlename, lastname";
         await using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@u", username);
         cmd.Parameters.AddWithValue("@e", email);
@@ -79,11 +81,14 @@ public static class AccountManager
         cmd.Parameters.AddWithValue("@p", password);
         await using var reader = await cmd.ExecuteReaderAsync();
         await reader.ReadAsync();
-        var first = reader.IsDBNull(2) ? null : reader.GetString(2);
-        var middle = reader.IsDBNull(3) ? null : reader.GetString(3);
-        var last = reader.IsDBNull(4) ? null : reader.GetString(4);
-        byte id = string.Equals(username, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new UserManagment.Account(id, username, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
+        var guid = reader.GetGuid(0);
+        var uname = reader.GetString(1);
+        var emailOut = reader.GetString(2);
+        var first = reader.IsDBNull(3) ? null : reader.GetString(3);
+        var middle = reader.IsDBNull(4) ? null : reader.GetString(4);
+        var last = reader.IsDBNull(5) ? null : reader.GetString(5);
+        byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
+        var acc = new UserManagment.Account(guid, id, uname, emailOut, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
         return acc;
     }
@@ -125,7 +130,7 @@ public static class AccountManager
     {
         await using var conn = DatabaseManager.Instance.CreateConnection();
         await conn.OpenAsync();
-        const string sql = @"SELECT username, email, firstname, middlename, lastname FROM users ORDER BY created_at DESC LIMIT @lim OFFSET @off";
+        const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname FROM users ORDER BY created_at DESC LIMIT @lim OFFSET @off";
         await using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("@lim", limit);
         cmd.Parameters.AddWithValue("@off", offset);
@@ -133,15 +138,38 @@ public static class AccountManager
         var list = new List<UserManagment.Account>();
         while (await reader.ReadAsync())
         {
-            var uname = reader.GetString(0);
-            var email = reader.GetString(1);
-            var first = reader.IsDBNull(2) ? null : reader.GetString(2);
-            var middle = reader.IsDBNull(3) ? null : reader.GetString(3);
-            var last = reader.IsDBNull(4) ? null : reader.GetString(4);
+            var guid = reader.GetGuid(0);
+            var uname = reader.GetString(1);
+            var email = reader.GetString(2);
+            var first = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var middle = reader.IsDBNull(4) ? null : reader.GetString(4);
+            var last = reader.IsDBNull(5) ? null : reader.GetString(5);
             byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-            var acc = new UserManagment.Account(id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
+            var acc = new UserManagment.Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
             acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
             list.Add(acc);
+        }
+        return list;
+    }
+    public static async Task<List<Servers.Server>> GetServerListAsync(Guid userId)
+    {
+        await using var conn = DatabaseManager.Instance.CreateConnection();
+        await conn.OpenAsync();
+        const string sqlSelectIds = @"SELECT s.uuid, s.name, s.description, s.created_at
+                                    FROM servers s
+                                    INNER JOIN server_owners so ON s.uuid = so.server_uuid
+                                    WHERE so.user_uuid = @u";
+        await using var cmd = new NpgsqlCommand(sqlSelectIds, conn);
+        cmd.Parameters.AddWithValue("@u", userId);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        var list = new List<Servers.Server>();
+        while (await reader.ReadAsync())
+        {
+            var serverUuid = reader.GetGuid(0);
+            var name = reader.GetString(1);
+            var createdAt = reader.IsDBNull(3) ? DateTime.UtcNow : reader.GetDateTime(3);
+            var server = new Servers.Server(serverUuid, 0, name, new Servers.ServerConfig(), Array.Empty<Services.Service>(), null, null, createdAt);
+            list.Add(server);
         }
         return list;
     }

@@ -12,10 +12,10 @@ public class Account
     public string? LastName { get; set; }
     public Group[] Groups { get; set; }
     public bool IsAdmin { get; private set; }
-
-    internal Account(byte id, string username, string email, string firstName, string middleName, string lastName, Group[] groups)
+    
+    internal Account(Guid guid, byte id, string username, string email, string firstName, string middleName, string lastName, Group[] groups)
     {
-        GUID = Managers.ID.Instance.GenerateGUID();
+        GUID = guid;
         Id = id;
         Username = username ?? throw new ArgumentNullException(nameof(username));
         Email = email ?? throw new ArgumentNullException(nameof(email));
@@ -24,13 +24,6 @@ public class Account
         LastName = lastName;
         Groups = groups ?? throw new ArgumentNullException(nameof(groups));
         
-        if (Id == 0)
-        {
-            IsAdmin = true;
-        }
-        else
-        {
-            IsAdmin = false;
-        }
+        IsAdmin = id == 0;
     }
 }
