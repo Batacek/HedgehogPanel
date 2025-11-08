@@ -98,6 +98,7 @@ async function boot() {
     loadComponent('sidebar', '/html/components/sidebar.html'),
     loadComponent('topbar', '/html/components/topbar.html')
   ]);
+  await updateTopbarUser();
   initTopbarInteractions();
   await loadPage('home');
 }
@@ -179,3 +180,20 @@ function initTopbarInteractions() {
 window.addEventListener('DOMContentLoaded', boot);
 
 window.loadPage = loadPage;
+
+
+async function updateTopbarUser() {
+  try {
+    const res = await fetch('/api/me', { credentials: 'same-origin', cache: 'no-cache' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const name = (data && (data.displayName || data.username)) || null;
+    const topbar = document.getElementById('topbar');
+    const nameEl = topbar ? topbar.querySelector('#user-name') : document.querySelector('#topbar #user-name');
+    if (nameEl && name) {
+      nameEl.textContent = name;
+      nameEl.title = data.username || name;
+    }
+  } catch (e) {
+  }
+}

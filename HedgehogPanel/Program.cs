@@ -139,6 +139,21 @@ class Program
             return Results.Ok(new { success = true });
         });
 
+        app.MapGet("/api/me", (HttpContext ctx) =>
+        {
+            if (ctx.User?.Identity?.IsAuthenticated == true)
+            {
+                var username = ctx.User.FindFirst("username")?.Value
+                               ?? ctx.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                               ?? ctx.User.Identity?.Name
+                               ?? string.Empty;
+                var displayName = ctx.User.FindFirst(ClaimTypes.Name)?.Value
+                                  ?? (!string.IsNullOrWhiteSpace(username) ? username : "User");
+                return Results.Ok(new { username, displayName });
+            }
+            return Results.Unauthorized();
+        });
+
         app.MapGet("/api/servers", async (HttpContext ctx) =>
         {
             var userGuidStr = ctx.User?.FindFirst("guid")?.Value;
