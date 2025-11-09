@@ -116,3 +116,27 @@ SELECT s.name, u.username, s.description
 FROM servers s
          JOIN server_owners so ON s.uuid = so.server_uuid
          JOIN users u ON so.user_uuid = u.uuid;
+
+-- Insert default groups
+INSERT INTO groups (name, description, created_at)
+VALUES ('admin', 'Administrators', NOW()),
+       ('default', 'Default users', NOW());
+
+-- Add users to their respective groups
+INSERT INTO user_groups (user_uuid, group_uuid)
+SELECT u.uuid, g.uuid
+FROM users u, groups g
+WHERE u.username = 'admin' AND g.name = 'admin';
+
+INSERT INTO user_groups (user_uuid, group_uuid)
+SELECT u.uuid, g.uuid
+FROM users u, groups g
+WHERE u.username = 'default_user' AND g.name = 'default';
+
+-- Check inserted groups and memberships
+SELECT name, description FROM groups;
+SELECT u.username, g.name AS group_name
+FROM user_groups ug
+JOIN users u ON ug.user_uuid = u.uuid
+JOIN groups g ON ug.group_uuid = g.uuid
+ORDER BY u.username;
