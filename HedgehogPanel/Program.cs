@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
 using HedgehogPanel.Managers;
+using HedgehogPanel.API;
 
 namespace HedgehogPanel;
 
@@ -80,114 +81,8 @@ class Program
             return Results.Redirect("/html/login.html");
         });
 
-        app.MapPost("/api/login", async (HttpContext ctx, LoginRequest req) =>
-        {
-            if (req is null || string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
-            {
-                return Results.BadRequest(new { error = "Missing username or password." });
-            }
-            var username = req.Username.Trim();
-            var password = req.Password;
-
-            if (username.Length > 64 || password.Length > 256)
-            {
-                return Results.BadRequest(new { error = "Invalid credentials." });
-            }
-            foreach (var ch in username)
-            {
-                if (!(char.IsLetterOrDigit(ch) || ch == '.' || ch == '_' || ch == '-' ))
-                {
-                    return Results.BadRequest(new { error = "Invalid username format." });
-                }
-            }
-
-            try
-            {
-                var account = await Managers.AccountManager.AuthenticateAsync(username, password);
-                var claims = new List<Claim>
-                {
-                    new Claim(ClaimTypes.Name, account.Name ?? username),
-                    new Claim(ClaimTypes.NameIdentifier, account.Username),
-                    new Claim("username", account.Username),
-                    new Claim("guid", account.GUID.ToString())
-                };
-                if (account.IsAdmin)
-                {
-                    claims.Add(new Claim(ClaimTypes.Role, "Admin"));
-                }
-                var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-                var principal = new ClaimsPrincipal(identity);
-                var authProps = new AuthenticationProperties
-                {
-                    IsPersistent = true,
-                    AllowRefresh = true
-                };
-                await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProps);
-                return Results.Ok(new { success = true });
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // fall through to unauthorized result
-            }
-            return Results.Unauthorized();
-        });
-
-        // Logout API
-        app.MapPost("/api/logout", async (HttpContext ctx) =>
-        {
-            await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            return Results.Ok(new { success = true });
-        });
-
-        app.MapGet("/api/me", (HttpContext ctx) =>
-        {
-            if (ctx.User?.Identity?.IsAuthenticated == true)
-            {
-                var username = ctx.User.FindFirst("username")?.Value
-                               ?? ctx.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                               ?? ctx.User.Identity?.Name
-                               ?? string.Empty;
-                var displayName = ctx.User.FindFirst(ClaimTypes.Name)?.Value
-                                  ?? (!string.IsNullOrWhiteSpace(username) ? username : "User");
-                return Results.Ok(new { username, displayName });
-            }
-            return Results.Unauthorized();
-        });
-
-        app.MapGet("/api/servers", async (HttpContext ctx) =>
-        {
-            var userGuidStr = ctx.User?.FindFirst("guid")?.Value;
-            if (string.IsNullOrEmpty(userGuidStr) || !Guid.TryParse(userGuidStr, out var userGuid))
-            {
-                return Results.Ok(Array.Empty<object>());
-            }
-
-            try
-            {
-                var servers = await AccountManager.GetServerListAsync(userGuid);
-                var serverList = new List<object>();
-                foreach (var server in servers)
-                {
-                    serverList.Add(new {
-                        id = server.GUID.ToString(),
-                        name = server.Name,
-                        owner = "You",        // current user is the owner per query
-                        role = "Owner",        // simplified role (owner)
-                        status = "Unknown"     // status not in DB yet
-                    });
-                }
-                return Results.Ok(serverList);
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"[GET /api/servers] Failed to load servers: {ex}");
-
-                return Results.Ok(Array.Empty<object>());
-            }
-        });
+        app.MapApi();
 
         app.Run();
     }
-
-    public record LoginRequest(string Username, string Password);
 }
