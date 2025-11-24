@@ -2,6 +2,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
+using Serilog;
 using HedgehogPanel.Managers;
 using HedgehogPanel.API;
 
@@ -11,6 +12,22 @@ class Program
 {
     public static void Main(string[] args)
     {
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .Enrich.FromLogContext()
+            .Enrich.WithMachineName()
+            .Enrich.WithThreadId()
+            .WriteTo.Console()
+            .WriteTo.File(
+                "logs/hedgehog-panel-.log",
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 14,
+                shared: true,
+                restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"
+            )
+            .CreateLogger();
+        
         var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
