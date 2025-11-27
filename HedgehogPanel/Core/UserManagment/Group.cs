@@ -1,3 +1,6 @@
+using HedgehogPanel.Core.Managers;
+using Serilog;
+
 namespace HedgehogPanel.UserManagment;
 
 public class Group
@@ -10,10 +13,11 @@ public class Group
     
     public Group(byte id, string name, string description, byte priority)
     {
-        GUID = Managers.ID.Instance.GenerateGUID();
+        GUID = ID.Instance.GenerateGUID();
         Id = id;
         Name = name ?? throw new ArgumentNullException(nameof(name));
         Description = description ?? throw new ArgumentNullException(nameof(description));
         Priority = priority;
+        Log.Information("Group created: {Name} (GUID: {Guid}, Id: {Id}, Priority: {Priority})", Name, GUID, Id, Priority);
     }
 }

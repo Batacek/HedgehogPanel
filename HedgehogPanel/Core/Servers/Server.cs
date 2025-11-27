@@ -1,10 +1,12 @@
 using HedgehogPanel.Services;
 using HedgehogPanel.UserManagment;
+using Serilog;
 
 namespace HedgehogPanel.Servers;
 
 public class Server
 {
+    private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(Server));
     public Guid GUID { get; private set; }
     public byte Id { get; private set; }
     public string Name { get; private set; }
@@ -24,5 +26,6 @@ public class Server
         OwnerAccount = ownerAccount;
         OwnerGroup = ownerGroup;
         CreatedAt = createdAt;
+        Logger.Information("Server created: {Name} (GUID: {Guid}, Id: {Id}, OwnerAccount: {OwnerAccount}, OwnerGroup: {OwnerGroup}, CreatedAt: {CreatedAt})", Name, GUID, Id, OwnerAccount?.Username, OwnerGroup?.Name, CreatedAt);
     }
 }

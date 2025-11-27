@@ -1,10 +1,12 @@
-using Npgsql;
 using DotNetEnv;
+using Npgsql;
+using Serilog;
 
-namespace HedgehogPanel.Managers;
+namespace HedgehogPanel.Core.Managers;
 
 public class DatabaseManager
 {
+    private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(DatabaseManager));
     public readonly string _connectionString;
     private readonly string _dbName;
     private readonly string _dbUser;
@@ -21,6 +23,7 @@ public class DatabaseManager
         _dbPass = dbPass ?? throw new ArgumentNullException(nameof(dbPass));
         _dbHost = dbHost ?? throw new ArgumentNullException(nameof(dbHost));
         _dbPort = dbPort;
+        Logger.Information("DatabaseManager created for host {Host}:{Port}, database {Database}, user {User}.", _dbHost, _dbPort, _dbName, _dbUser);
     }
 
     public static DatabaseManager Initialize()
@@ -33,6 +36,7 @@ public class DatabaseManager
         string dbHost = Env.GetString("DB_HOST", "localhost");
         int dbPort = Env.GetInt("DB_PORT", 5432);
         string connectionString = $"Host={dbHost};Port={dbPort};Username={dbUser};Password={dbPass};Database={dbName}";
+        Logger.Information("Initializing DatabaseManager with host {Host}:{Port} and database {Database}.", dbHost, dbPort, dbName);
         
         return new DatabaseManager(connectionString, dbName, dbUser, dbPass, dbHost, dbPort);
     }
@@ -41,6 +45,7 @@ public class DatabaseManager
 
     public NpgsqlConnection CreateConnection()
     {
+        Logger.Debug("Creating new database connection to {Host}:{Port}/{Database} as {User}.", _dbHost, _dbPort, _dbName, _dbUser);
         return new NpgsqlConnection(_connectionString);
     }
 }

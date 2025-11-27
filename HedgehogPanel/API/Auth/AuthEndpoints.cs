@@ -1,14 +1,18 @@
 using System.Security.Claims;
-using HedgehogPanel.Managers;
+using HedgehogPanel.Core.Managers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Serilog;
 
 namespace HedgehogPanel.API.Auth;
 
 public static class AuthEndpoints
 {
+    private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(AuthEndpoints));
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        Logger.Information("Mapping Auth endpoints...");
+        
         // Login API
         endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req) =>
         {
@@ -54,10 +58,12 @@ public static class AuthEndpoints
                     AllowRefresh = true
                 };
                 await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProps);
+                Logger.Information("User {Username} authenticated successfully.", username);
                 return Results.Ok(new { success = true });
             }
             catch (UnauthorizedAccessException)
             {
+                Logger.Warning("Failed to authenticate user {Username}.", username);
                 // fall through to unauthorized result
             }
             return Results.Unauthorized();
@@ -67,6 +73,7 @@ public static class AuthEndpoints
         endpoints.MapPost("/api/logout", async (HttpContext ctx) =>
         {
             await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            Logger.Information("User {Username} logged out.", ctx.User?.Identity?.Name ?? "Unknown");
             return Results.Ok(new { success = true });
         });
 
@@ -81,8 +88,10 @@ public static class AuthEndpoints
                                ?? string.Empty;
                 var displayName = ctx.User.FindFirst(ClaimTypes.Name)?.Value
                                   ?? (!string.IsNullOrWhiteSpace(username) ? username : "User");
+                Logger.Debug("Retrieved info for user {Username}.", username);
                 return Results.Ok(new { username, displayName });
             }
+            Logger.Warning("Unauthenticated request to /api/me.");
             return Results.Unauthorized();
         });
 

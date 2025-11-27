@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
 using Serilog;
-using HedgehogPanel.Managers;
 using HedgehogPanel.API;
 
 namespace HedgehogPanel;
@@ -41,27 +40,28 @@ class Program
             return;
         }
 
-        Log.Information("Starting Hedgehog Panel Web Application...");
-        Log.Information("Environment: {Environment}", Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"));
-        Log.Information("Content Root Path: {ContentRootPath}", AppContext.BaseDirectory);
-        Log.Information("Web Root Path: {WebRootPath}", Path.Combine(AppContext.BaseDirectory, "html"));
+        var logger = Log.ForContext<Program>();
+        logger.Information("Starting Hedgehog Panel Web Application...");
+        logger.Information("Environment: {Environment}", Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"));
+        logger.Information("Content Root Path: {ContentRootPath}", AppContext.BaseDirectory);
+        logger.Information("Web Root Path: {WebRootPath}", Path.Combine(AppContext.BaseDirectory, "html"));
         
-        Log.Information("Initializing builder...");
+        logger.Information("Initializing builder...");
 
         var builder = null as WebApplicationBuilder;
         
         try
         {
             builder = WebApplication.CreateBuilder(args);
-            Log.Information("Builder initialized.");
+            logger.Information("Builder initialized.");
         } catch (Exception ex)
         {
-            Log.Fatal(ex, "Failed to initialize WebApplication builder.");
+            logger.Fatal(ex, "Failed to initialize WebApplication builder.");
             return;
         }
 
-        Log.Information("Configuring services...");
-        Log.Information("Setting up authentication and authorization...");
+        logger.Information("Configuring services...");
+        logger.Information("Setting up authentication and authorization...");
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
             {
@@ -72,20 +72,20 @@ class Program
                 options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
                 options.SlidingExpiration = true;
             });
-        Log.Information("Authentication configured.");
+        logger.Information("Authentication configured.");
         
         builder.Services.AddAuthorization();
-        Log.Information("Authorization configured.");
+        logger.Information("Authorization configured.");
 
-        Log.Information("Building application...");
+        logger.Information("Building application...");
         var app = builder.Build();
-        Log.Information("Application built.");
+        logger.Information("Application built.");
         
         app.UseAuthentication();
         app.UseAuthorization();
 
         // Protect HTML pages (except the login page and static assets) by redirecting unauthenticated users
-        Log.Information("Configuring page protection...");
+        logger.Information("Configuring page protection...");
         app.Use(async (context, next) =>
         {
             var path = context.Request.Path;
@@ -120,17 +120,17 @@ class Program
 
             await next();
         });
-        Log.Information("Page protection configured.");
+        logger.Information("Page protection configured.");
         
-        Log.Information("Configuring endpoints...");
+        logger.Information("Configuring endpoints...");
         app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.ContentRootPath, "html")),
             RequestPath = "/html"
         });
-        Log.Information("Endpoints configured.");
+        logger.Information("Endpoints configured.");
 
-        Log.Information("Mapping redirect for root path...");
+        logger.Information("Mapping redirect for root path...");
         app.MapGet("/", (HttpContext ctx, IWebHostEnvironment env) =>
         {
             if (ctx.User?.Identity?.IsAuthenticated == true)
@@ -139,13 +139,13 @@ class Program
             }
             return Results.Redirect("/html/login.html");
         });
-        Log.Information("Redirect mapped.");
+        logger.Information("Redirect mapped.");
 
-        Log.Information("Mapping API endpoints...");
+        logger.Information("Mapping API endpoints...");
         app.MapApi();
-        Log.Information("API endpoints mapped.");
+        logger.Information("API endpoints mapped.");
 
-        Log.Information("Starting application...");
+        logger.Information("Starting application...");
         app.Run();
     }
 }
