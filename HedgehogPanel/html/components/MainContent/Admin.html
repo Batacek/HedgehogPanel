@@ -1,0 +1,256 @@
+<div class="card">
+  <h2>Administration</h2>
+  <p>Manage users and servers. Server connectivity is not implemented yet; only database entries are created.</p>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Create User</h3>
+    <div id="create-user-msg" class="note" hidden></div>
+    <form id="create-user-form">
+      <div class="form-row">
+        <label>Username<input name="username" required></label>
+        <label>Email<input name="email" type="email" required></label>
+      </div>
+      <div class="form-row">
+        <label>Password<input name="password" type="password" required></label>
+      </div>
+      <div class="form-row">
+        <label>First name<input name="firstName"></label>
+        <label>Middle name<input name="middleName"></label>
+        <label>Last name<input name="lastName"></label>
+      </div>
+      <button type="submit">Create</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Create Server</h3>
+    <div id="create-server-msg" class="note" hidden></div>
+    <form id="create-server-form">
+      <div class="form-row">
+        <label>Name<input name="name" required></label>
+      </div>
+      <div class="form-row">
+        <label>Description<input name="description"></label>
+      </div>
+      <div class="form-row">
+        <label>Owner username (optional)<input name="ownerUsername"></label>
+      </div>
+      <button type="submit">Create</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Users</h3>
+    <div id="admin-users-msg" class="note" hidden></div>
+    <div id="admin-users"></div>
+  </div>
+  <div class="card">
+    <h3>Servers</h3>
+    <div id="admin-servers-msg" class="note" hidden></div>
+    <div id="admin-servers"></div>
+  </div>
+</div>
+
+<script>
+(async function(){
+  function setNote(target, message, type) {
+    const el = typeof target === 'string' ? document.getElementById(target) : target;
+    if (!el) return;
+    if (!message) {
+      el.hidden = true;
+      el.textContent = '';
+      el.className = 'note';
+      return;
+    }
+    el.hidden = false;
+    el.textContent = message;
+    el.className = 'note' + (type ? ' ' + type : '');
+  }
+
+  async function readError(res) {
+    let msg = '';
+    try {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const data = await res.json();
+        msg = (data && (data.error || data.message)) || '';
+      } else {
+        msg = await res.text();
+      }
+    } catch {}
+    if (!msg) msg = `HTTP ${res.status}`;
+    return msg;
+  }
+
+  async function fetchJson(url, options) {
+    const res = await fetch(url, Object.assign({ credentials: 'same-origin' }, options||{}));
+    if (res.status === 401 || res.status === 403) {
+      // Let callers decide how to show; still provide a clear error
+      const err = new Error('Access denied. Admin only.');
+      err.status = res.status;
+      throw err;
+    }
+    if (!res.ok) {
+      const msg = await readError(res);
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+    return res.json();
+  }
+
+  async function loadUsers(){
+    const listEl = document.getElementById('admin-users');
+    const msgEl = 'admin-users-msg';
+    try {
+      setNote(msgEl, '');
+      const data = await fetchJson('/api/admin/users');
+      if (!listEl) return;
+      if (!Array.isArray(data) || data.length === 0){
+        listEl.innerHTML = '<div class="note">No users found.</div>';
+        return;
+      }
+      listEl.innerHTML = '<table class="table"><thead><tr><th>Username</th><th>Email</th><th>Name</th><th>Admin</th><th></th></tr></thead><tbody>'+
+        data.map(u => `<tr><td>${u.username}</td><td>${u.email||''}</td><td>${u.name||''}</td><td>${u.isAdmin? 'Yes':'No'}</td>`+
+        `<td>${u.username!=='admin'? `<button data-del-user="${u.username}">Delete</button>`:''}</td></tr>`).join('')+
+        '</tbody></table>';
+      listEl.querySelectorAll('[data-del-user]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          if (!confirm('Delete user '+btn.dataset.delUser+'?')) return;
+          try {
+            const res = await fetch('/api/admin/users/'+encodeURIComponent(btn.dataset.delUser), { method:'DELETE', credentials:'same-origin' });
+            if (res.ok) {
+              await loadUsers();
+            } else {
+              const msg = await readError(res);
+              setNote(msgEl, `Failed to delete user: ${msg}`, 'danger');
+            }
+          } catch (e) {
+            setNote(msgEl, `Failed to delete user: ${e.message||e}`, 'danger');
+          }
+        });
+      });
+    } catch (e) {
+      if (e && (e.status === 401 || e.status === 403)) {
+        listEl.innerHTML = '<div class="note danger">Access denied. Admin only.</div>';
+        setNote(msgEl, 'Access denied. You do not have permission to view users.', 'danger');
+      } else {
+        const message = (e && e.message) ? e.message : 'Failed to load users.';
+        setNote(msgEl, message, 'danger');
+        if (listEl) listEl.innerHTML = '';
+      }
+    }
+  }
+
+  async function loadServers(){
+    const listEl = document.getElementById('admin-servers');
+    const msgEl = 'admin-servers-msg';
+    try {
+      setNote(msgEl, '');
+      const data = await fetchJson('/api/admin/servers');
+      if (!listEl) return;
+      if (!Array.isArray(data) || data.length === 0){
+        listEl.innerHTML = '<div class="note">No servers found.</div>';
+        return;
+      }
+      listEl.innerHTML = '<table class="table"><thead><tr><th>Name</th><th>Description</th><th>Owner</th><th>Created</th><th></th></tr></thead><tbody>'+
+        data.map(s => `<tr><td>${s.name}</td><td>${s.description||''}</td><td>${s.ownerUsername||''}</td><td>${new Date(s.createdAt).toLocaleString()}</td>`+
+        `<td><button data-del-server="${s.id}">Delete</button></td></tr>`).join('')+
+        '</tbody></table>';
+      listEl.querySelectorAll('[data-del-server]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          if (!confirm('Delete server?')) return;
+          try {
+            const res = await fetch('/api/admin/servers/'+encodeURIComponent(btn.dataset.delServer), { method:'DELETE', credentials:'same-origin' });
+            if (res.ok) {
+              await loadServers();
+            } else {
+              const msg = await readError(res);
+              setNote(msgEl, `Failed to delete server: ${msg}`, 'danger');
+            }
+          } catch (e) {
+            setNote(msgEl, `Failed to delete server: ${e.message||e}`, 'danger');
+          }
+        });
+      });
+    } catch (e) {
+      if (e && (e.status === 401 || e.status === 403)) {
+        listEl.innerHTML = '<div class="note danger">Access denied. Admin only.</div>';
+        setNote(msgEl, 'Access denied. You do not have permission to view servers.', 'danger');
+      } else {
+        const message = (e && e.message) ? e.message : 'Failed to load servers.';
+        setNote(msgEl, message, 'danger');
+        if (listEl) listEl.innerHTML = '';
+      }
+    }
+  }
+
+  function setBusy(btn, busy) {
+    if (!btn) return;
+    btn.disabled = !!busy;
+    if (busy) {
+      btn.dataset.label = btn.textContent;
+      btn.textContent = 'Working...';
+    } else if (btn.dataset.label) {
+      btn.textContent = btn.dataset.label;
+      delete btn.dataset.label;
+    }
+  }
+
+  document.getElementById('create-user-form')?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const msgId = 'create-user-msg';
+    setNote(msgId, '');
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    const btn = e.submitter || e.target.querySelector('button[type="submit"]');
+    try {
+      setBusy(btn, true);
+      const res = await fetch('/api/admin/users', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload), credentials:'same-origin' });
+      if (res.ok) {
+        setNote(msgId, 'User created successfully.', 'success');
+        e.target.reset();
+        await loadUsers();
+      } else {
+        const msg = await readError(res);
+        setNote(msgId, `Failed to create user: ${msg}`, 'danger');
+      }
+    } catch (err) {
+      setNote(msgId, `Failed to create user: ${err.message||err}`, 'danger');
+    } finally {
+      setBusy(btn, false);
+    }
+  });
+
+  document.getElementById('create-server-form')?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const msgId = 'create-server-msg';
+    setNote(msgId, '');
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    const btn = e.submitter || e.target.querySelector('button[type="submit"]');
+    try {
+      setBusy(btn, true);
+      const res = await fetch('/api/admin/servers', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload), credentials:'same-origin' });
+      if (res.ok) {
+        setNote(msgId, 'Server created successfully.', 'success');
+        e.target.reset();
+        await loadServers();
+      } else {
+        const msg = await readError(res);
+        setNote(msgId, `Failed to create server: ${msg}`, 'danger');
+      }
+    } catch (err) {
+      setNote(msgId, `Failed to create server: ${err.message||err}`, 'danger');
+    } finally {
+      setBusy(btn, false);
+    }
+  });
+
+  await Promise.allSettled([loadUsers(), loadServers()]);
+})();
+</script>
