@@ -82,6 +82,27 @@ class Program
         logger.Information("Application built.");
         
         app.UseAuthentication();
+        // Log attempts to access Admin API by non-admins (before authorization short-circuits)
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api/admin"))
+            {
+                var isAuthenticated = context.User?.Identity?.IsAuthenticated == true;
+                var isAdmin = isAuthenticated && (context.User.IsInRole("Admin") || context.User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "Admin"));
+                if (!isAdmin)
+                {
+                    var username = context.User?.FindFirst("username")?.Value
+                                   ?? context.User?.Identity?.Name
+                                   ?? "Anonymous";
+                    var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                    Log.ForContext<Program>()
+                       .ForContext("Path", context.Request.Path.ToString())
+                       .ForContext("IP", ip)
+                       .Warning("Unauthorized access attempt to Admin API by {User}. Authenticated={Authenticated}", username, isAuthenticated);
+                }
+            }
+            await next();
+        });
         app.UseAuthorization();
 
         // Protect HTML pages (except the login page and static assets) by redirecting unauthenticated users
@@ -114,6 +135,18 @@ class Program
                     {
                         context.Response.Redirect("/");
                         return;
+                    }
+
+                    // Block access to Admin page HTML for non-admin users
+                    var isAdmin = context.User.IsInRole("Admin") || context.User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "Admin");
+                    if (!isAdmin)
+                    {
+                        if (path.Equals("/html/components/MainContent/Admin.html", StringComparison.OrdinalIgnoreCase))
+                        {
+                            context.Response.StatusCode = 403;
+                            await context.Response.WriteAsync("Forbidden: Admins only.");
+                            return;
+                        }
                     }
                 }
             }
