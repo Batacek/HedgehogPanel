@@ -1,8 +1,10 @@
 
+window.appUser = window.appUser || { isAdmin: null };
 const Routes = {
   home: "/html/components/MainContent/Home.html",
   servers: "/html/components/MainContent/Servers.html",
   services: "/html/components/MainContent/Services.html",
+  admin: "/html/components/MainContent/Admin.html",
 };
 
 function setActiveNav(pageKey) {
@@ -47,8 +49,16 @@ function normalizeRouteKey(input) {
 
 async function loadPage(pageKeyOrPath) {
   const intendedKey = normalizeRouteKey(pageKeyOrPath);
+  // Guard: non-admin users cannot navigate to admin page
+  const targetUrl = resolvePageUrl(pageKeyOrPath);
+  const wantsAdmin = (intendedKey === 'admin') || /\/Admin\.html$/i.test(targetUrl);
+  if (wantsAdmin && (window.appUser && window.appUser.isAdmin === false)) {
+    console.warn('Access to Admin page denied for non-admin user.');
+    if (intendedKey !== 'home') await loadPage('home');
+    return;
+  }
   if (intendedKey) setActiveNav(intendedKey);
-  const url = resolvePageUrl(pageKeyOrPath);
+  const url = targetUrl;
   try {
     const res = await fetch(url, { cache: 'no-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -98,8 +108,10 @@ async function boot() {
     loadComponent('sidebar', '/html/components/sidebar.html'),
     loadComponent('topbar', '/html/components/topbar.html')
   ]);
+  // Load user info first, then adjust sidebar for role
   await updateTopbarUser();
   initTopbarInteractions();
+  updateSidebarForRole();
   await loadPage('home');
 }
 
@@ -185,15 +197,47 @@ window.loadPage = loadPage;
 async function updateTopbarUser() {
   try {
     const res = await fetch('/api/me', { credentials: 'same-origin', cache: 'no-cache' });
-    if (!res.ok) return;
-    const data = await res.json();
-    const name = (data && (data.displayName || data.username)) || null;
-    const topbar = document.getElementById('topbar');
-    const nameEl = topbar ? topbar.querySelector('#user-name') : document.querySelector('#topbar #user-name');
-    if (nameEl && name) {
-      nameEl.textContent = name;
-      nameEl.title = data.username || name;
+    if (res.ok) {
+      const data = await res.json();
+      const name = (data && (data.displayName || data.username)) || null;
+      const topbar = document.getElementById('topbar');
+      const nameEl = topbar ? topbar.querySelector('#user-name') : document.querySelector('#topbar #user-name');
+      if (nameEl && name) {
+        nameEl.textContent = name;
+        nameEl.title = data.username || name;
+      }
+      window.appUser = {
+        username: data.username || null,
+        displayName: data.displayName || data.username || null,
+        isAdmin: !!data.isAdmin
+      };
+    } else {
+      window.appUser = { isAdmin: false };
     }
   } catch (e) {
+    window.appUser = { isAdmin: false };
+  } finally {
+    updateSidebarForRole();
+  }
+}
+
+function updateSidebarForRole() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  const adminBtn = sidebar.querySelector('button.nav-button[data-page="admin"]');
+  if (!adminBtn) return;
+  const isAdmin = !!(window.appUser && window.appUser.isAdmin);
+  if (!isAdmin) {
+    adminBtn.style.display = 'none';
+    const heading = adminBtn.previousElementSibling;
+    if (heading && heading.classList.contains('nav-heading')) {
+      heading.style.display = 'none';
+    }
+  } else {
+    adminBtn.style.display = '';
+    const heading = adminBtn.previousElementSibling;
+    if (heading && heading.classList.contains('nav-heading')) {
+      heading.style.display = '';
+    }
   }
 }
