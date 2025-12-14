@@ -88,8 +88,9 @@ public static class AuthEndpoints
                                ?? string.Empty;
                 var displayName = ctx.User.FindFirst(ClaimTypes.Name)?.Value
                                   ?? (!string.IsNullOrWhiteSpace(username) ? username : "User");
+                var isAdmin = ctx.User.IsInRole("Admin") || ctx.User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "Admin");
                 Logger.Debug("Retrieved info for user {Username}.", username);
-                return Results.Ok(new { username, displayName });
+                return Results.Ok(new { username, displayName, isAdmin });
             }
             Logger.Warning("Unauthenticated request to /api/me.");
             return Results.Unauthorized();
