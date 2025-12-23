@@ -1,14 +1,19 @@
 using System.Security.Claims;
+using System.Text;
 using HedgehogPanel.Core.Managers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 using Serilog;
+using HedgehogPanel.Core;
 
 namespace HedgehogPanel.API.Auth;
 
 public static class AuthEndpoints
 {
     private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(AuthEndpoints));
+
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder endpoints)
     {
         Logger.Information("Mapping Auth endpoints...");
@@ -50,6 +55,7 @@ public static class AuthEndpoints
                     claims.Add(new Claim(ClaimTypes.Role, "Admin"));
                 }
 
+                // Issue cookie auth
                 var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
                 var principal = new ClaimsPrincipal(identity);
                 var authProps = new AuthenticationProperties
@@ -58,8 +64,20 @@ public static class AuthEndpoints
                     AllowRefresh = true
                 };
                 await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProps);
+
+                // Additionally, generate JWT for API clients if configured
+                string? token = null;
+                try
+                {
+                    token = GenerateJwtToken(claims);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning(ex, "JWT token generation skipped (misconfigured secret or other issue).");
+                }
+
                 Logger.Information("User {Username} authenticated successfully.", username);
-                return Results.Ok(new { success = true });
+                return Results.Ok(new { success = true, token });
             }
             catch (UnauthorizedAccessException)
             {
@@ -67,7 +85,7 @@ public static class AuthEndpoints
                 // fall through to unauthorized result
             }
             return Results.Unauthorized();
-        });
+        }).AllowAnonymous();
 
         // Logout API
         endpoints.MapPost("/api/logout", async (HttpContext ctx) =>
@@ -94,9 +112,77 @@ public static class AuthEndpoints
             }
             Logger.Warning("Unauthenticated request to /api/me.");
             return Results.Unauthorized();
-        });
+        }).RequireAuthorization();
 
         return endpoints;
+    }
+
+    private static string GenerateJwtToken(List<Claim> claims)
+    {
+        var secret = Config.JwtSecret;
+        if (string.IsNullOrWhiteSpace(secret))
+        {
+            Logger.Error("JWT_SECRET is not configured. Add JWT_SECRET to your .env file.");
+            throw new InvalidOperationException("JWT secret not configured");
+        }
+        var keyBytes = Encoding.UTF8.GetBytes(secret);
+        if (keyBytes.Length < 32)
+        {
+            Logger.Error("JWT_SECRET must be at least 32 bytes (256 bits). Current length: {Length} bytes.", keyBytes.Length);
+            throw new InvalidOperationException("JWT secret too short (min 32 bytes)");
+        }
+
+        var key = new SymmetricSecurityKey(keyBytes);
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var token = new JwtSecurityToken(
+            issuer: Config.JwtIssuer,
+            audience: Config.JwtAudience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: credentials
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public static bool VerifyToken(string token)
+    {
+        try
+        {
+            var secret = Config.JwtSecret;
+            if (string.IsNullOrWhiteSpace(secret))
+            {
+                Logger.Warning("JWT_SECRET is not configured; token verification will fail.");
+                return false;
+            }
+            var keyBytes = Encoding.UTF8.GetBytes(secret);
+            if (keyBytes.Length < 32)
+            {
+                Logger.Warning("JWT_SECRET is too short ({Length} bytes); token verification will fail.", keyBytes.Length);
+                return false;
+            }
+            var key = new SymmetricSecurityKey(keyBytes);
+            var handler = new JwtSecurityTokenHandler();
+            
+            handler.ValidateToken(token, new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = key,
+                ValidateIssuer = true,
+                ValidIssuer = Config.JwtIssuer,
+                ValidateAudience = true,
+                ValidAudience = Config.JwtAudience,
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.Zero
+            }, out SecurityToken validatedToken);
+
+            return validatedToken is JwtSecurityToken;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public record LoginRequest(string Username, string Password);
