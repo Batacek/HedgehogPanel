@@ -30,7 +30,7 @@ public static class AdminEndpoints
                 lastName = u.LastName,
                 isAdmin = u.IsAdmin
             }));
-        });
+        }).RequireAuthorization();
 
         group.MapPost("/users", async (CreateUserRequest req) =>
         {
@@ -61,7 +61,7 @@ public static class AdminEndpoints
                 Logger.Error(ex, "Failed to create user {Username}", req.Username);
                 return Results.BadRequest(new { error = ex.Message });
             }
-        });
+        }).RequireAuthorization();
 
         group.MapDelete("/users/{username}", async (string username) =>
         {
@@ -70,14 +70,14 @@ public static class AdminEndpoints
                 return Results.BadRequest(new { error = "Cannot delete built-in admin user." });
             var ok = await AccountManager.DeleteAccountAsync(username.Trim());
             return ok ? Results.Ok(new { success = true }) : Results.NotFound(new { error = "User not found." });
-        });
+        }).RequireAuthorization();
 
         // Servers
         group.MapGet("/servers", async () =>
         {
             var servers = await ServerManager.ListServersAsync(500, 0);
             return Results.Ok(servers);
-        });
+        }).RequireAuthorization();
 
         group.MapPost("/servers", async (CreateServerRequest req) =>
         {
@@ -100,14 +100,14 @@ public static class AdminEndpoints
                 Logger.Error(ex, "Failed to create server {Name}", req.Name);
                 return Results.BadRequest(new { error = ex.Message });
             }
-        });
+        }).RequireAuthorization();
 
         group.MapDelete("/servers/{id}", async (string id) =>
         {
             if (!Guid.TryParse(id, out var guid)) return Results.BadRequest(new { error = "Invalid server id." });
             var ok = await ServerManager.DeleteServerAsync(guid);
             return ok ? Results.Ok(new { success = true }) : Results.NotFound(new { error = "Server not found." });
-        });
+        }).RequireAuthorization();;
 
         Logger.Information("Admin endpoints mapped.");
         return endpoints;
