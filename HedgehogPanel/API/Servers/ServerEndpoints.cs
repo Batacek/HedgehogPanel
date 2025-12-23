@@ -43,7 +43,7 @@ public static class ServerEndpoints
                 Logger.Error(ex, "[GET /api/servers] Failed to load servers for user {UserGuid}.", userGuid);
                 return Results.Ok(Array.Empty<object>());
             }
-        });
+        }).RequireAuthorization();
 
         return endpoints;
     }
