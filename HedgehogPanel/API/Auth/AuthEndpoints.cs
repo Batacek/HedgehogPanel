@@ -7,6 +7,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using Serilog;
 using HedgehogPanel.Core;
+using HedgehogPanel.Core.Security;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HedgehogPanel.API.Auth;
 
@@ -19,25 +21,35 @@ public static class AuthEndpoints
         Logger.Information("Mapping Auth endpoints...");
         
         // Login API
-        endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req) =>
+        endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req, IAccountLockoutService lockoutSvc) =>
         {
             if (req is null || string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
             {
-                return Results.BadRequest(new { error = "Missing username or password." });
+                return Results.BadRequest(new { error = "Missing username or password.", lockoutTimeRemaining = (string?)null });
             }
             var username = req.Username.Trim();
             var password = req.Password;
+            var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
             if (username.Length > 64 || password.Length > 256)
             {
-                return Results.BadRequest(new { error = "Invalid credentials." });
+                return Results.BadRequest(new { error = "Invalid credentials.", lockoutTimeRemaining = (string?)null });
             }
             foreach (var ch in username)
             {
                 if (!(char.IsLetterOrDigit(ch) || ch == '.' || ch == '_' || ch == '-'))
                 {
-                    return Results.BadRequest(new { error = "Invalid username format." });
+                    return Results.BadRequest(new { error = "Invalid username format.", lockoutTimeRemaining = (string?)null });
                 }
+            }
+
+            // Check lockout before authenticating
+            if (await lockoutSvc.IsAccountLockedAsync(username, ip))
+            {
+                var remaining = await lockoutSvc.GetLockoutTimeRemainingAsync(username, ip);
+                var mmss = remaining.HasValue ? FormatTime(remaining.Value) : null;
+                Logger.Warning("Login attempt while locked out. User={Username}, IP={IP}, Remaining={Remaining}", username, ip, remaining);
+                return Results.Json(new { error = "Account is temporarily locked due to multiple failed login attempts.", lockoutTimeRemaining = mmss }, statusCode: 423);
             }
 
             try
@@ -65,6 +77,10 @@ public static class AuthEndpoints
                 };
                 await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProps);
 
+                // Reset failed attempts after success
+                await lockoutSvc.ResetFailedAttemptsAsync(username, ip);
+                Logger.Information("User {Username} authenticated successfully from {IP}.", username, ip);
+
                 // Additionally, generate JWT for API clients if configured
                 string? token = null;
                 try
@@ -76,16 +92,25 @@ public static class AuthEndpoints
                     Logger.Warning(ex, "JWT token generation skipped (misconfigured secret or other issue).");
                 }
 
-                Logger.Information("User {Username} authenticated successfully.", username);
-                return Results.Ok(new { success = true, token });
+                return Results.Ok(new { success = true, token, lockoutTimeRemaining = (string?)null });
             }
             catch (UnauthorizedAccessException)
             {
-                Logger.Warning("Failed to authenticate user {Username}.", username);
-                // fall through to unauthorized result
+                Logger.Warning("Failed to authenticate user {Username} from {IP}.", username, ip);
+                await lockoutSvc.RecordFailedAttemptAsync(username, ip);
+                // If now locked, return 423 with remaining
+                if (await lockoutSvc.IsAccountLockedAsync(username, ip))
+                {
+                    var remaining = await lockoutSvc.GetLockoutTimeRemainingAsync(username, ip);
+                    var mmss = remaining.HasValue ? FormatTime(remaining.Value) : null;
+                    return Results.Json(new { error = "Account locked due to too many failed attempts.", lockoutTimeRemaining = mmss }, statusCode: 423);
+                }
+                // Otherwise standard unauthorized
+                return Results.Json(new { error = "Invalid username or password.", lockoutTimeRemaining = (string?)null }, statusCode: 401);
             }
-            return Results.Unauthorized();
-        }).AllowAnonymous();
+        })
+        .AllowAnonymous()
+        .RequireRateLimiting("LoginRateLimit");
 
         // Logout API
         endpoints.MapPost("/api/logout", async (HttpContext ctx) =>
@@ -183,6 +208,12 @@ public static class AuthEndpoints
         {
             return false;
         }
+    }
+
+    private static string FormatTime(TimeSpan span)
+    {
+        if (span < TimeSpan.Zero) span = TimeSpan.Zero;
+        return $"{(int)span.TotalMinutes:00}:{span.Seconds:00}";
     }
 
     public record LoginRequest(string Username, string Password);
