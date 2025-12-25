@@ -95,8 +95,38 @@
     (function() {
       const form = document.getElementById('login-form');
       const errorEl = document.getElementById('error');
+      const btn = form.querySelector('button[type="submit"]');
+      let countdownTimer = null;
+
       const showError = (msg) => { errorEl.textContent = msg || 'Invalid username or password.'; errorEl.style.display = 'block'; };
       const clearError = () => { errorEl.textContent = ''; errorEl.style.display = 'none'; };
+
+      const disableWithCountdown = (seconds, baseLabel) => {
+        if (!Number.isFinite(seconds) || seconds <= 0) return;
+        let remaining = Math.ceil(seconds);
+        btn.disabled = true;
+        updateButtonLabel();
+        countdownTimer && clearInterval(countdownTimer);
+        countdownTimer = setInterval(() => {
+          remaining -= 1;
+          updateButtonLabel();
+          if (remaining <= 0) {
+            clearInterval(countdownTimer);
+            countdownTimer = null;
+            btn.disabled = false;
+            btn.textContent = 'Sign in';
+          }
+        }, 1000);
+
+        function mmss(sec) {
+          const m = Math.floor(sec / 60);
+          const s = sec % 60;
+          return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }
+        function updateButtonLabel() {
+          btn.textContent = `${baseLabel} (${mmss(remaining)})`;
+        }
+      };
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -115,11 +145,34 @@
             window.location.href = '/';
             return;
           }
+
+          if (res.status === 423) {
+            const data = await res.json().catch(() => ({}));
+            const remain = (data && typeof data.lockoutTimeRemaining === 'string') ? data.lockoutTimeRemaining : null;
+            showError((data && data.error) || 'Account locked due to too many failed attempts.');
+            // Parse mm:ss -> seconds
+            let seconds = 0;
+            if (remain && /\d{2}:\d{2}/.test(remain)) {
+              const [m,s] = remain.split(':').map(x => parseInt(x,10));
+              seconds = (m*60 + s) || 0;
+            }
+            if (seconds > 0) disableWithCountdown(seconds, 'Locked');
+            return;
+          }
+
+          if (res.status === 429) {
+            const retryAfter = parseInt(res.headers.get('Retry-After') || '0', 10);
+            showError('Too many requests. Please wait before trying again.');
+            if (retryAfter > 0) disableWithCountdown(retryAfter, 'Rate limited');
+            return;
+          }
+
           if (res.status === 400) {
             const data = await res.json().catch(() => ({}));
             showError(data.error || 'Invalid username or password.');
           } else if (res.status === 401) {
-            showError('Invalid username or password.');
+            const data = await res.json().catch(() => ({}));
+            showError((data && data.error) || 'Invalid username or password.');
           } else {
             showError('Server error. Please try again.');
           }
