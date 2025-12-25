@@ -1,6 +1,6 @@
 # 🦔 Hedgehog Panel
 
-[![License: MIT](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://opensource.org/licenses/MIT) 
+[![License: Apache](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://opensource.org/licenses/Apache-2-0)
 ![C#](https://img.shields.io/badge/C%23-239120?logo=c-sharp&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-8-blue)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?logo=postgresql&logoColor=white)
@@ -23,5 +23,5 @@ Hedgehog Panel consists of two main components:
 | Backend   | C# (.NET 8)          |
 | Daemon    | Rust                 |
 | Frontend  | HTML/CSS/JS          |
-| Database  | PostreSQL            |
+| Database  | PostgreSQL           |
 
