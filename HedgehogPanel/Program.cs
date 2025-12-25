@@ -10,6 +10,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.AspNetCore.Diagnostics;
 using DotNetEnv;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 namespace HedgehogPanel;
 
@@ -68,6 +70,56 @@ class Program
         }
 
         logger.Information("Configuring services...");
+        // Rate Limiting configuration
+        builder.Services.AddRateLimiter(options =>
+        {
+            // 429 for rejected
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = static async (context, token) =>
+            {
+                context.HttpContext.Response.ContentType = "application/json";
+                var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var ra) ? ra.TotalSeconds : (double?)null;
+                if (retryAfter.HasValue)
+                {
+                    context.HttpContext.Response.Headers["Retry-After"] = Math.Ceiling(retryAfter.Value).ToString();
+                }
+                var payload = System.Text.Json.JsonSerializer.Serialize(new { error = "Too many requests. Please try again later." });
+                await context.HttpContext.Response.WriteAsync(payload, token);
+            };
+
+            // Global fallback limiter (per-IP)
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
+            {
+                var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                return RateLimitPartition.GetSlidingWindowLimiter($"global:{ip}", _ => new SlidingWindowRateLimiterOptions
+                {
+                    PermitLimit = 200,
+                    Window = TimeSpan.FromMinutes(1),
+                    SegmentsPerWindow = 4,
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                });
+            });
+
+            // Named policy for login endpoint
+            options.AddPolicy("LoginRateLimit", httpContext =>
+            {
+                var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                return RateLimitPartition.GetSlidingWindowLimiter($"login:{ip}", _ => new SlidingWindowRateLimiterOptions
+                {
+                    PermitLimit = 10, // 10 attempts per 5 minutes
+                    Window = TimeSpan.FromMinutes(5),
+                    SegmentsPerWindow = 5,
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                });
+            });
+        });
+
+        // Caching + Lockout service
+        builder.Services.AddMemoryCache();
+        builder.Services.AddScoped<HedgehogPanel.Core.Security.IAccountLockoutService, HedgehogPanel.Core.Security.AccountLockoutService>();
+
         logger.Information("Setting up authentication and authorization...");
         var jwtSecret = HedgehogPanel.Core.Config.JwtSecret;
         var jwtKeyBytes = !string.IsNullOrWhiteSpace(jwtSecret) ? Encoding.UTF8.GetBytes(jwtSecret) : Array.Empty<byte>();
@@ -155,6 +207,8 @@ class Program
         {
             app.UseExceptionHandler("/error");
         }
+        // Rate Limiting must be before authentication
+        app.UseRateLimiter();
         app.UseAuthentication();
         // Log attempts to access Admin API by non-admins (before authorization short-circuits)
         app.Use(async (context, next) =>
