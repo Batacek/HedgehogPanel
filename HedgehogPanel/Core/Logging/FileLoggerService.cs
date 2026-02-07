@@ -17,6 +17,8 @@ public class FileLoggerService : ILoggerService
     public void Warning(Exception ex, string message, params object[] args) => _logger.Warning(ex, message, args);
     public void Error(string message, params object[] args) => _logger.Error(message, args);
     public void Error(Exception ex, string message, params object[] args) => _logger.Error(ex, message, args);
+    public void Fatal(string message, params object[] args) => _logger.Fatal(message, args);
+    public void Fatal(Exception ex, string message, params object[] args) => _logger.Fatal(ex, message, args);
 
     public Task LogSecurityEventAsync(SecurityEvent securityEvent)
     {
