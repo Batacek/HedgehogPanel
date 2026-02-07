@@ -9,8 +9,9 @@ DROP TABLE IF EXISTS services CASCADE;
 DROP TABLE IF EXISTS servers CASCADE;
 DROP TABLE IF EXISTS user_groups CASCADE;
 DROP TABLE IF EXISTS groups CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-*/  
+DROP TABLE IF EXISTS users CASCADE; 
+DROP TABLE IF EXISTS user_security_events CASCADE;
+*/
 
 -- Users
 CREATE TABLE users (
@@ -83,11 +84,34 @@ CREATE TABLE service_owners (
                                 user_uuid UUID NULL,
                                 group_uuid UUID NULL,
                                 assigned_at TIMESTAMP DEFAULT now(),
-                                PRIMARY KEY (service_uuid, user_uuid, group_uuid),
                                 FOREIGN KEY (service_uuid) REFERENCES services(uuid) ON DELETE CASCADE,
                                 FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE,
                                 FOREIGN KEY (group_uuid) REFERENCES groups(uuid) ON DELETE CASCADE
 );
+CREATE TABLE user_security_events (
+                                      id               UUID PRIMARY KEY,
+                                      user_id           UUID NULL,
+                                      actor_user_id     UUID NULL,
+
+                                      event_type        VARCHAR(100) NOT NULL,
+                                      occurred_at_utc   TIMESTAMPTZ NOT NULL,
+
+                                      ip_address        VARCHAR(45) NOT NULL,
+                                      user_agent        TEXT NULL,
+
+                                      success           BOOLEAN NOT NULL,
+                                      metadata          JSONB NULL
+);
+
+CREATE INDEX idx_user_security_events_user_time
+    ON user_security_events (user_id, occurred_at_utc DESC);
+
+CREATE INDEX idx_user_security_events_event_time
+    ON user_security_events (event_type, occurred_at_utc DESC);
+
+CREATE INDEX idx_user_security_events_actor_time
+    ON user_security_events (actor_user_id, occurred_at_utc DESC);
+
 
 -- Insert default users with hashed passwords
 INSERT INTO users (username, email, firstname, middlename, lastname, password_hash, created_at)
