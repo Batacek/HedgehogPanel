@@ -1,10 +1,10 @@
-using Serilog;
+using HedgehogPanel.Core.Logging;
 
 namespace HedgehogPanel.Core.Managers;
 
 internal class ID
 {
-    private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(ID));
+    private static readonly ILoggerService Logger = HedgehogLogger.ForContext(typeof(ID));
     private readonly HashSet<Guid> _guids = new HashSet<Guid>();
     private readonly object _threadLock = new object();
     
