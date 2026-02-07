@@ -5,23 +5,23 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
-using Serilog;
 using HedgehogPanel.Core;
 using HedgehogPanel.Core.Security;
+using HedgehogPanel.Core.Logging;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace HedgehogPanel.API.Auth;
 
 public static class AuthEndpoints
 {
-    private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(AuthEndpoints));
+    private static readonly ILoggerService Logger = HedgehogLogger.ForContext(typeof(AuthEndpoints));
 
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder endpoints)
     {
         Logger.Information("Mapping Auth endpoints...");
         
         // Login API
-        endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req, IAccountLockoutService lockoutSvc) =>
+        endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req, IAccountLockoutService lockoutSvc, IAccountManager accountManager) =>
         {
             if (req is null || string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
             {
@@ -49,12 +49,23 @@ public static class AuthEndpoints
                 var remaining = await lockoutSvc.GetLockoutTimeRemainingAsync(username, ip);
                 var mmss = remaining.HasValue ? FormatTime(remaining.Value) : null;
                 Logger.Warning("Login attempt while locked out. User={Username}, IP={IP}, Remaining={Remaining}", username, ip, remaining);
+
+                await Logger.LogSecurityEventAsync(new SecurityEvent(
+                    "User.Login.Blocked",
+                    null,
+                    null,
+                    ip,
+                    ctx.Request.Headers["User-Agent"],
+                    false,
+                    new { username, reason = "Account locked" }
+                ));
+
                 return Results.Json(new { error = "Account is temporarily locked due to multiple failed login attempts.", lockoutTimeRemaining = mmss }, statusCode: 423);
             }
 
             try
             {
-                var account = await AccountManager.AuthenticateAsync(username, password);
+                var account = await accountManager.AuthenticateAsync(username, password);
                 var claims = new List<Claim>
                 {
                     new Claim(ClaimTypes.Name, account.Name ?? username),
@@ -81,6 +92,16 @@ public static class AuthEndpoints
                 await lockoutSvc.ResetFailedAttemptsAsync(username, ip);
                 Logger.Information("User {Username} authenticated successfully from {IP}.", username, ip);
 
+                await Logger.LogSecurityEventAsync(new SecurityEvent(
+                    "User.Login.Success",
+                    account.GUID,
+                    null,
+                    ip,
+                    ctx.Request.Headers["User-Agent"],
+                    true,
+                    new { authMethod = "password" }
+                ));
+
                 // Additionally, generate JWT for API clients if configured
                 string? token = null;
                 try
@@ -97,6 +118,17 @@ public static class AuthEndpoints
             catch (UnauthorizedAccessException)
             {
                 Logger.Warning("Failed to authenticate user {Username} from {IP}.", username, ip);
+                
+                await Logger.LogSecurityEventAsync(new SecurityEvent(
+                    "User.Login.Failed",
+                    null,
+                    null,
+                    ip,
+                    ctx.Request.Headers["User-Agent"],
+                    false,
+                    new { username, failureReason = "Invalid credentials", authMethod = "password" }
+                ));
+
                 await lockoutSvc.RecordFailedAttemptAsync(username, ip);
                 // If now locked, return 423 with remaining
                 if (await lockoutSvc.IsAccountLockedAsync(username, ip))
@@ -115,8 +147,23 @@ public static class AuthEndpoints
         // Logout API
         endpoints.MapPost("/api/logout", async (HttpContext ctx) =>
         {
+            var username = ctx.User?.Identity?.Name ?? "Unknown";
+            var guidClaim = ctx.User?.FindFirst("guid")?.Value;
+            Guid? userGuid = guidClaim != null ? Guid.Parse(guidClaim) : null;
+            var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
             await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            Logger.Information("User {Username} logged out.", ctx.User?.Identity?.Name ?? "Unknown");
+            Logger.Information("User {Username} logged out.", username);
+
+            await Logger.LogSecurityEventAsync(new SecurityEvent(
+                "User.Logout",
+                userGuid,
+                null,
+                ip,
+                ctx.Request.Headers["User-Agent"],
+                true
+            ));
+
             return Results.Ok(new { success = true });
         });
 
