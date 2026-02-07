@@ -69,6 +69,28 @@ public interface ILoggerService
     void Error(Exception ex, string message, params object[] args);
 
     /// <summary>
+    /// Logs a fatal-level message with optional parameters.
+    /// This method is used to record critical issues that cause immediate failure
+    /// of the application or system, requiring urgent attention.
+    /// </summary>
+    /// <param name="message">The fatal message template to log. Use structured logging
+    /// to include placeholders within the message.</param>
+    /// <param name="args">Optional parameters to populate placeholders in the message.</param>
+    void Fatal(string message, params object[] args);
+
+    /// <summary>
+    /// Logs a fatal-level message along with exception details and optional parameters.
+    /// This method is used to record critical errors that cause application termination or require
+    /// immediate attention.
+    /// </summary>
+    /// <param name="ex">The exception associated with the fatal error. This provides detailed
+    /// information about the error and its context.</param>
+    /// <param name="message">The fatal message template to log. Use structured logging to include
+    /// placeholders within the message.</param>
+    /// <param name="args">Optional parameters to populate placeholders in the message.</param>
+    void Fatal(Exception ex, string message, params object[] args);
+
+    /// <summary>
     /// Logs a security-related event asynchronously.
     /// This method captures details of actions or incidents,
     /// aiding in compliance, auditing, and security analysis.
