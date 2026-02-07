@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
 using Serilog;
 using HedgehogPanel.API;
+using HedgehogPanel.Core.Logging;
+using HedgehogPanel.Core.Database;
+using HedgehogPanel.Core.Managers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -12,6 +15,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using Npgsql;
 
 namespace HedgehogPanel;
 
@@ -48,7 +52,7 @@ class Program
             return;
         }
 
-        var logger = Log.ForContext<Program>();
+        var logger = HedgehogLogger.ForContext<Program>();
         logger.Information("Starting Hedgehog Panel Web Application...");
         logger.Information("Environment: {Environment}", Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"));
         logger.Information("Content Root Path: {ContentRootPath}", AppContext.BaseDirectory);
@@ -70,13 +74,45 @@ class Program
         }
 
         logger.Information("Configuring services...");
+
+        // Database configuration
+        var dbHost = Env.GetString("DB_HOST", "localhost");
+        var dbPort = Env.GetInt("DB_PORT", 5432);
+        var dbUser = Env.GetString("DB_USER") ?? throw new InvalidOperationException("DB_USER must be set.");
+        var dbPass = Env.GetString("DB_PASSWORD") ?? throw new InvalidOperationException("DB_PASSWORD must be set.");
+        var dbName = Env.GetString("DB_NAME") ?? throw new InvalidOperationException("DB_NAME must be set.");
+        var connectionString = $"Host={dbHost};Port={dbPort};Username={dbUser};Password={dbPass};Database={dbName}";
+
+        builder.Services.AddSingleton<NpgsqlDataSource>(_ => NpgsqlDataSource.Create(connectionString));
+        builder.Services.AddSingleton<IDbConnectionFactory, NpgsqlConnectionFactory>();
+
+        builder.Services.AddSingleton<DatabaseLoggerService>();
+        builder.Services.AddSingleton<IAccountManager, AccountManager>(sp => 
+            new AccountManager(HedgehogLogger.ForContext<AccountManager>(), sp.GetRequiredService<IDbConnectionFactory>()));
+        builder.Services.AddSingleton<IServerManager, ServerManager>(sp => 
+            new ServerManager(HedgehogLogger.ForContext<ServerManager>(), sp.GetRequiredService<IDbConnectionFactory>()));
+        
+        logger.Information("Database services and managers registered.");
+
         // Rate Limiting configuration
         builder.Services.AddRateLimiter(options =>
         {
             // 429 for rejected
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.OnRejected = static async (context, token) =>
+            options.OnRejected = async (context, token) =>
             {
+                var ip = context.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var hedgehogLogger = HedgehogLogger.ForContext<Program>();
+                await hedgehogLogger.LogSecurityEventAsync(new SecurityEvent(
+                    "User.Login.RateLimited",
+                    null,
+                    null,
+                    ip,
+                    context.HttpContext.Request.Headers["User-Agent"],
+                    false,
+                    new { signal = "Rate limit exceeded" }
+                ));
+
                 context.HttpContext.Response.ContentType = "application/json";
                 var retryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var ra) ? ra.TotalSeconds : (double?)null;
                 if (retryAfter.HasValue)
@@ -201,6 +237,11 @@ class Program
         logger.Information("Building application...");
         var app = builder.Build();
         logger.Information("Application built.");
+
+        // Initialize static logger with database logger
+        var dbLogger = app.Services.GetRequiredService<DatabaseLoggerService>();
+        HedgehogLogger.Initialize(dbLogger);
+        logger.Information("HedgehogLogger initialized with DatabaseLoggerService.");
         
         app.UseSerilogRequestLogging();
         if (!app.Environment.IsDevelopment())
@@ -223,10 +264,17 @@ class Program
                                    ?? context.User?.Identity?.Name
                                    ?? "Anonymous";
                     var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                    Log.ForContext<Program>()
-                       .ForContext("Path", context.Request.Path.ToString())
-                       .ForContext("IP", ip)
-                       .Warning("Unauthorized access attempt to Admin API by {User}. Authenticated={Authenticated}", username, isAuthenticated);
+                    logger.Warning("Unauthorized access attempt to Admin API by {User}. Authenticated={Authenticated}", username, isAuthenticated);
+
+                    await logger.LogSecurityEventAsync(new SecurityEvent(
+                        "Security.UnauthorizedAccessAttempt",
+                        null,
+                        null,
+                        ip,
+                        context.Request.Headers["User-Agent"],
+                        false,
+                        new { username, path = context.Request.Path.ToString() }
+                    ));
                 }
             }
             await next();
