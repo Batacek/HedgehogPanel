@@ -1,15 +1,15 @@
 using HedgehogPanel.Core.Managers;
-using Serilog;
+using HedgehogPanel.Core.Logging;
 
 namespace HedgehogPanel.API.Servers;
 
 public static class ServerEndpoints
 {
-    private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(ServerEndpoints));
+    private static readonly ILoggerService Logger = HedgehogLogger.ForContext(typeof(ServerEndpoints));
     public static IEndpointRouteBuilder MapServerEndpoints(this IEndpointRouteBuilder endpoints)
     {
         Logger.Information("Mapping Server endpoints...");
-        endpoints.MapGet("/api/servers", async (HttpContext ctx) =>
+        endpoints.MapGet("/api/servers", async (HttpContext ctx, IAccountManager accountManager) =>
         {
             var userGuidStr = ctx.User?.FindFirst("guid")?.Value;
             if (string.IsNullOrEmpty(userGuidStr) || !Guid.TryParse(userGuidStr, out var userGuid))
@@ -21,7 +21,7 @@ public static class ServerEndpoints
             try
             {
                 Logger.Debug("Fetching servers for user {UserGuid}...", userGuid);
-                var servers = await AccountManager.GetServerListAsync(userGuid);
+                var servers = await accountManager.GetServerListAsync(userGuid);
                 var serverList = new List<object>();
                 foreach (var server in servers)
                 {
