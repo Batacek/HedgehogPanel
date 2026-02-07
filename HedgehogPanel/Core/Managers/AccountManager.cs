@@ -1,31 +1,42 @@
 using Npgsql;
-using Serilog;
+using HedgehogPanel.Core.Logging;
+using HedgehogPanel.Core.Database;
+using HedgehogPanel.UserManagment;
+using HedgehogPanel.Servers;
 
 namespace HedgehogPanel.Core.Managers;
 
-public static class AccountManager
+public class AccountManager : IAccountManager
 {
-    private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(AccountManager));
-    public static async Task<UserManagment.Account> AuthenticateAsync(string username, string password)
+    private readonly ILoggerService _logger;
+    private readonly IDbConnectionFactory _connectionFactory;
+
+    public AccountManager(ILoggerService logger, IDbConnectionFactory connectionFactory)
     {
-        Logger.Debug("Authenticating user {Username}...", username);
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+    }
+
+    public async Task<Account> AuthenticateAsync(string username, string password)
+    {
+        _logger.Debug("Authenticating user {Username}...", username);
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
             throw new UnauthorizedAccessException("Invalid username or password.");
 
-        await using var conn = DatabaseManager.Instance.CreateConnection();
-        await conn.OpenAsync();
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
         const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname
                               FROM users
                               WHERE username = @u
                                 AND password_hash = encode(digest(@p, 'sha256'), 'hex')
                               LIMIT 1";
-        await using var cmd = new NpgsqlCommand(sql, conn);
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@u", username);
         cmd.Parameters.AddWithValue("@p", password);
         await using var reader = await cmd.ExecuteReaderAsync();
         if (!await reader.ReadAsync())
         {
-            Logger.Warning("Authentication failed for user {Username}.", username);
+            _logger.Warning("Authentication failed for user {Username}.", username);
             throw new UnauthorizedAccessException("Invalid username or password.");
         }
 
@@ -37,25 +48,26 @@ public static class AccountManager
         var guid = reader.GetGuid(0);
 
         byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new UserManagment.Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
+        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>());
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
-        Logger.Information("User {Username} authenticated. Account GUID: {Guid}.", uname, guid);
+        _logger.Information("User {Username} authenticated. Account GUID: {Guid}.", uname, guid);
         return acc;
     }
 
-    public static async Task<UserManagment.Account?> GetAccountByUsernameAsync(string username)
+    public async Task<Account?> GetAccountByUsernameAsync(string username)
     {
-        Logger.Debug("Fetching account by username {Username}...", username);
-        await using var conn = DatabaseManager.Instance.CreateConnection();
-        await conn.OpenAsync();
+        _logger.Debug("Fetching account by username {Username}...", username);
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
         const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname
                               FROM users WHERE username = @u LIMIT 1";
-        await using var cmd = new NpgsqlCommand(sql, conn);
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@u", username);
         await using var reader = await cmd.ExecuteReaderAsync();
         if (!await reader.ReadAsync())
         {
-            Logger.Information("No account found for username {Username}.", username);
+            _logger.Information("No account found for username {Username}.", username);
             return null;
         }
 
@@ -66,25 +78,25 @@ public static class AccountManager
         var uname = reader.GetString(1);
         var guid = reader.GetGuid(0);
         byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new UserManagment.Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
+        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>());
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
-        Logger.Debug("Fetched account {Username} with GUID {Guid}.", uname, guid);
+        _logger.Debug("Fetched account {Username} with GUID {Guid}.", uname, guid);
         return acc;
     }
 
-    public static async Task<UserManagment.Account> CreateAccountAsync(string username, string email, string password, string? firstName = null, string? middleName = null, string? lastName = null)
+    public async Task<Account> CreateAccountAsync(string username, string email, string password, string? firstName = null, string? middleName = null, string? lastName = null)
     {
         if (string.IsNullOrWhiteSpace(username)) throw new ArgumentException("username required", nameof(username));
         if (string.IsNullOrWhiteSpace(email)) throw new ArgumentException("email required", nameof(email));
         if (string.IsNullOrEmpty(password)) throw new ArgumentException("password required", nameof(password));
 
-        Logger.Information("Creating account for username {Username}...", username);
-        await using var conn = DatabaseManager.Instance.CreateConnection();
-        await conn.OpenAsync();
+        _logger.Information("Creating account for username {Username}...", username);
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
         const string sql = @"INSERT INTO users (username, email, firstname, middlename, lastname, password_hash)
                               VALUES (@u, @e, @f, @m, @l, encode(digest(@p, 'sha256'), 'hex'))
                               RETURNING uuid, username, email, firstname, middlename, lastname";
-        await using var cmd = new NpgsqlCommand(sql, conn);
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@u", username);
         cmd.Parameters.AddWithValue("@e", email);
         cmd.Parameters.AddWithValue("@f", (object?)firstName ?? DBNull.Value);
@@ -100,66 +112,84 @@ public static class AccountManager
         var middle = reader.IsDBNull(4) ? null : reader.GetString(4);
         var last = reader.IsDBNull(5) ? null : reader.GetString(5);
         byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new UserManagment.Account(guid, id, uname, emailOut, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
+        var acc = new Account(guid, id, uname, emailOut, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>());
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
-        Logger.Information("Created account {Username} with GUID {Guid}.", uname, guid);
+        _logger.Information("Created account {Username} with GUID {Guid}.", uname, guid);
         return acc;
     }
 
-    public static async Task<bool> UpdateAccountAsync(string username, string newEmail, string? firstName = null, string? middleName = null, string? lastName = null, string? newPassword = null)
+    public async Task<bool> UpdateAccountAsync(string username, string newEmail, string? firstName = null, string? middleName = null, string? lastName = null, string? newPassword = null, string? ip = "unknown", Guid? actorGuid = null)
     {
-        Logger.Information("Updating account {Username}...", username);
-        await using var conn = DatabaseManager.Instance.CreateConnection();
-        await conn.OpenAsync();
+        _logger.Information("Updating account {Username}...", username);
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
         const string sql = @"UPDATE users
                               SET email = @e,
                                   firstname = @f,
                                   middlename = @m,
                                   lastname = @l,
                                   password_hash = CASE WHEN @p IS NULL THEN password_hash ELSE encode(digest(@p, 'sha256'), 'hex') END
-                              WHERE username = @u";
-        await using var cmd = new NpgsqlCommand(sql, conn);
+                              WHERE username = @u
+                              RETURNING uuid";
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@e", newEmail);
         cmd.Parameters.AddWithValue("@f", (object?)firstName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@m", (object?)middleName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@l", (object?)lastName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@p", (object?)newPassword ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@u", username);
-        var rows = await cmd.ExecuteNonQueryAsync();
-        if (rows > 0)
-            Logger.Information("Updated account {Username}.", username);
+        
+        var userUuid = await cmd.ExecuteScalarAsync() as Guid?;
+        var success = userUuid != null;
+
+        if (success)
+        {
+            _logger.Information("Updated account {Username}.", username);
+            if (newPassword != null)
+            {
+                await _logger.LogSecurityEventAsync(new SecurityEvent(
+                    "User.Password.Changed",
+                    userUuid,
+                    actorGuid,
+                    ip ?? "unknown",
+                    null,
+                    true,
+                    new { initiatedBy = actorGuid != null ? "admin" : "user" }
+                ));
+            }
+        }
         else
-            Logger.Warning("No rows updated for account {Username}.", username);
-        return rows > 0;
+            _logger.Warning("No rows updated for account {Username}.", username);
+        return success;
     }
 
-    public static async Task<bool> DeleteAccountAsync(string username)
+    public async Task<bool> DeleteAccountAsync(string username)
     {
-        Logger.Warning("Deleting account {Username}...", username);
-        await using var conn = DatabaseManager.Instance.CreateConnection();
-        await conn.OpenAsync();
+        _logger.Warning("Deleting account {Username}...", username);
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
         const string sql = @"DELETE FROM users WHERE username = @u";
-        await using var cmd = new NpgsqlCommand(sql, conn);
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@u", username);
         var rows = await cmd.ExecuteNonQueryAsync();
         if (rows > 0)
-            Logger.Warning("Deleted account {Username}.", username);
+            _logger.Warning("Deleted account {Username}.", username);
         else
-            Logger.Warning("No account deleted for {Username}.", username);
+            _logger.Warning("No account deleted for {Username}.", username);
         return rows > 0;
     }
 
-    public static async Task<IReadOnlyList<UserManagment.Account>> ListAccountsAsync(int limit = 100, int offset = 0)
+    public async Task<IReadOnlyList<Account>> ListAccountsAsync(int limit = 100, int offset = 0)
     {
-        Logger.Debug("Listing accounts with limit {Limit} and offset {Offset}...", limit, offset);
-        await using var conn = DatabaseManager.Instance.CreateConnection();
-        await conn.OpenAsync();
+        _logger.Debug("Listing accounts with limit {Limit} and offset {Offset}...", limit, offset);
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
         const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname FROM users ORDER BY created_at DESC LIMIT @lim OFFSET @off";
-        await using var cmd = new NpgsqlCommand(sql, conn);
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@lim", limit);
         cmd.Parameters.AddWithValue("@off", offset);
         await using var reader = await cmd.ExecuteReaderAsync();
-        var list = new List<UserManagment.Account>();
+        var list = new List<Account>();
         while (await reader.ReadAsync())
         {
             var guid = reader.GetGuid(0);
@@ -169,35 +199,35 @@ public static class AccountManager
             var middle = reader.IsDBNull(4) ? null : reader.GetString(4);
             var last = reader.IsDBNull(5) ? null : reader.GetString(5);
             byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-            var acc = new UserManagment.Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<UserManagment.Group>());
+            var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>());
             acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
             list.Add(acc);
         }
-        Logger.Information("Listed {Count} accounts (limit={Limit}, offset={Offset}).", list.Count, limit, offset);
+        _logger.Information("Listed {Count} accounts (limit={Limit}, offset={Offset}).", list.Count, limit, offset);
         return list;
     }
-    public static async Task<List<Servers.Server>> GetServerListAsync(Guid userId)
+    public async Task<List<Server>> GetServerListAsync(Guid userId)
     {
-        Logger.Debug("Fetching server list for user {UserId}...", userId);
-        await using var conn = DatabaseManager.Instance.CreateConnection();
-        await conn.OpenAsync();
+        _logger.Debug("Fetching server list for user {UserId}...", userId);
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
         const string sqlSelectIds = @"SELECT s.uuid, s.name, s.description, s.created_at
                                     FROM servers s
                                     INNER JOIN server_owners so ON s.uuid = so.server_uuid
                                     WHERE so.user_uuid = @u";
-        await using var cmd = new NpgsqlCommand(sqlSelectIds, conn);
+        await using var cmd = new NpgsqlCommand(sqlSelectIds, npgsqlConn);
         cmd.Parameters.AddWithValue("@u", userId);
         await using var reader = await cmd.ExecuteReaderAsync();
-        var list = new List<Servers.Server>();
+        var list = new List<Server>();
         while (await reader.ReadAsync())
         {
             var serverUuid = reader.GetGuid(0);
             var name = reader.GetString(1);
             var createdAt = reader.IsDBNull(3) ? DateTime.UtcNow : reader.GetDateTime(3);
-            var server = new Servers.Server(serverUuid, 0, name, new Servers.ServerConfig(), Array.Empty<Services.Service>(), null, null, createdAt);
+            var server = new Server(serverUuid, 0, name, new ServerConfig(), Array.Empty<HedgehogPanel.Services.Service>(), null, null, createdAt);
             list.Add(server);
         }
-        Logger.Information("Fetched {Count} servers for user {UserId}.", list.Count, userId);
+        _logger.Information("Fetched {Count} servers for user {UserId}.", list.Count, userId);
         return list;
     }
 }
