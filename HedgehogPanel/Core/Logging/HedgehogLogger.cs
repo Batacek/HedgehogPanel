@@ -5,10 +5,17 @@ public class HedgehogLogger : ILoggerService
     private readonly FileLoggerService _fileLogger;
     private readonly DatabaseLoggerService _dbLogger;
 
-    public HedgehogLogger(Type contextType)
+    private static DatabaseLoggerService? _dbLoggerInstance;
+
+    public HedgehogLogger(Type contextType, DatabaseLoggerService? dbLogger = null)
     {
         _fileLogger = new FileLoggerService(contextType);
-        _dbLogger = new DatabaseLoggerService();
+        _dbLogger = dbLogger;
+    }
+
+    public static void Initialize(DatabaseLoggerService dbLogger)
+    {
+        _dbLoggerInstance = dbLogger;
     }
 
     public void Debug(string message, params object[] args) => _fileLogger.Debug(message, args);
@@ -22,9 +29,16 @@ public class HedgehogLogger : ILoggerService
     {
         await _fileLogger.LogSecurityEventAsync(securityEvent);
 
-        await _dbLogger.LogSecurityEventAsync(securityEvent);
+        if (_dbLogger != null)
+        {
+            await _dbLogger.LogSecurityEventAsync(securityEvent);
+        }
+        else if (_dbLoggerInstance != null)
+        {
+            await _dbLoggerInstance.LogSecurityEventAsync(securityEvent);
+        }
     }
 
-    public static ILoggerService ForContext<T>() => new HedgehogLogger(typeof(T));
-    public static ILoggerService ForContext(Type type) => new HedgehogLogger(type);
+    public static ILoggerService ForContext<T>() => new HedgehogLogger(typeof(T), _dbLoggerInstance);
+    public static ILoggerService ForContext(Type type) => new HedgehogLogger(type, _dbLoggerInstance);
 }
