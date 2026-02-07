@@ -3,14 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Memory;
-using Serilog;
-using ILogger = Serilog.ILogger;
+using HedgehogPanel.Core.Logging;
 
 namespace HedgehogPanel.Core.Security;
 
 public class AccountLockoutService : IAccountLockoutService
 {
-    private static readonly ILogger Logger = Log.ForContext<AccountLockoutService>();
+    private static readonly ILoggerService Logger = HedgehogLogger.ForContext(typeof(AccountLockoutService));
 
     private const int MaxFailedAttempts = 5;
     private static readonly TimeSpan FailedAttemptsWindow = TimeSpan.FromMinutes(15);
@@ -54,6 +53,16 @@ public class AccountLockoutService : IAccountLockoutService
         {
             info.LockedUntil = DateTimeOffset.UtcNow.Add(LockoutDuration);
             Logger.Warning("Account {Username} from {IP} locked until {LockedUntil} after {Count} failed attempts.", username, clientIp, info.LockedUntil, info.FailedTimestamps.Count);
+
+            _ = Logger.LogSecurityEventAsync(new SecurityEvent(
+                "Security.AccountLockout",
+                null,
+                null,
+                clientIp,
+                null,
+                true,
+                new { username, threshold = MaxFailedAttempts, signal = "Too many failed attempts" }
+            ));
         }
         SetInfo(username, clientIp, info);
         return Task.CompletedTask;
