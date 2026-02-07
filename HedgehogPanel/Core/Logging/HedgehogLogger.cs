@@ -24,6 +24,8 @@ public class HedgehogLogger : ILoggerService
     public void Warning(Exception ex, string message, params object[] args) => _fileLogger.Warning(ex, message, args);
     public void Error(string message, params object[] args) => _fileLogger.Error(message, args);
     public void Error(Exception ex, string message, params object[] args) => _fileLogger.Error(ex, message, args);
+    public void Fatal(string message, params object[] args) => _fileLogger.Fatal(message, args);
+    public void Fatal(Exception ex, string message, params object[] args) => _fileLogger.Fatal(ex, message, args);
 
     public async Task LogSecurityEventAsync(SecurityEvent securityEvent)
     {
