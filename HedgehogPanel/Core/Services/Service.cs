@@ -1,12 +1,12 @@
 using HedgehogPanel.Core.Managers;
 using HedgehogPanel.UserManagment;
-using Serilog;
+using HedgehogPanel.Core.Logging;
 
 namespace HedgehogPanel.Services;
 
 public class Service
 {
-    private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(Service));
+    private static readonly ILoggerService Logger = HedgehogLogger.ForContext(typeof(Service));
     public Guid GUID { get; private set; }
     public byte Id { get; private set; }
     public string Name { get; private set;  }
@@ -24,6 +24,7 @@ public class Service
         Name = name ?? $"Service_{GUID}";
         Description = description;
         this.type = type;
+        this.groupId = groupId;
         OwnerAccount = ownerAccount ?? throw new ArgumentNullException(nameof(ownerAccount));
         OwnerGroup = ownerGroup ?? throw new ArgumentNullException(nameof(ownerGroup));
         Logger.Information("Service created: {Name} (GUID: {Guid}, Id: {Id}, Type: {Type}, GroupId: {GroupId}, Owner: {Owner})", Name, GUID, Id, this.type, this.groupId, OwnerAccount.Username);
