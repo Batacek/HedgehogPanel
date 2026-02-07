@@ -1,12 +1,12 @@
 using HedgehogPanel.Services;
 using HedgehogPanel.UserManagment;
-using Serilog;
+using HedgehogPanel.Core.Logging;
 
 namespace HedgehogPanel.Servers;
 
 public class Server
 {
-    private static readonly Serilog.ILogger Logger = Log.ForContext(typeof(Server));
+    private static readonly ILoggerService Logger = HedgehogLogger.ForContext(typeof(Server));
     public Guid GUID { get; private set; }
     public byte Id { get; private set; }
     public string Name { get; private set; }
