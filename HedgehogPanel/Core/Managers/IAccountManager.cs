@@ -80,7 +80,7 @@ public interface IAccountManager
     /// <exception cref="InvalidOperationException">
     /// Thrown when a database connection cannot be established or the connection type is invalid.
     /// </exception>
-    Task<bool> UpdateAccountAsync(string username, string newEmail, string? firstName = null, string? middleName = null, string? lastName = null, string? newPassword = null, string? ip = "unknown", Guid? actorGuid = null);
+    Task<bool> UpdateAccountAsync(string username, string newEmail, string? firstName = null, string? middleName = null, string? lastName = null, string? newPassword = null, string? ip = "unknown", Guid? actorGuid = null, uint? expectedVersion = null);
 
     /// <summary>
     /// Deletes a user account with the specified username.
