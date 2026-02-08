@@ -9,6 +9,7 @@ using HedgehogPanel.Core;
 using HedgehogPanel.Core.Security;
 using HedgehogPanel.Core.Logging;
 using HedgehogPanel.Core.Configuration;
+using HedgehogPanel.Core.Store;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace HedgehogPanel.API.Auth;
@@ -22,7 +23,7 @@ public static class AuthEndpoints
         Logger.Information("Mapping Auth endpoints...");
         
         // Login API
-        endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req, IAccountLockoutService lockoutSvc, IAccountManager accountManager, HedgehogConfig config) =>
+        endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req, IAccountLockoutService lockoutSvc, IAccountManager accountManager, IDataProvider dataProvider, HedgehogConfig config) =>
         {
             if (req is null || string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
             {
@@ -67,6 +68,16 @@ public static class AuthEndpoints
             try
             {
                 var account = await accountManager.AuthenticateAsync(username, password);
+                
+                // Warmup cache
+                _ = Task.Run(async () => {
+                    try {
+                        await dataProvider.WarmupAsync(account.GUID);
+                    } catch (Exception ex) {
+                        Logger.Error(ex, "Cache warmup failed for user {User}", account.GUID);
+                    }
+                });
+
                 var claims = new List<Claim>
                 {
                     new Claim(ClaimTypes.Name, account.Name ?? username),
