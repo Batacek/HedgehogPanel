@@ -9,6 +9,7 @@ public class HedgehogConfig
     public FeaturesConfig Features { get; set; } = new();
     public LoggingConfig Logging { get; set; } = new();
     public DatabaseConfig Database { get; set; } = new();
+    public CacheConfig Cache { get; set; } = new();
 }
 
 public class ServerConfig
@@ -91,4 +92,25 @@ public class DatabaseConfig
     public string? Name { get; set; }
 
     public string ConnectionString => $"Host={Host};Port={Port};Username={Username};Password={Password};Database={Name}";
+}
+
+public class CacheConfig
+{
+    public bool Enabled { get; set; } = true;
+    public int EntityLimit { get; set; } = 0; // 0 = unlimited
+    public int TtlMinutes { get; set; } = 0; // 0 = unlimited
+    public WarmupConfig Warmup { get; set; } = new();
+    public ConflictStrategy ConflictStrategy { get; set; } = ConflictStrategy.RefreshFromDb;
+}
+
+public class WarmupConfig
+{
+    public bool Enabled { get; set; } = true;
+    public int Depth { get; set; } = 3; // e.g. 1=user, 2=user+servers, 3=user+servers+services
+}
+
+public enum ConflictStrategy
+{
+    ThrowError,
+    RefreshFromDb
 }
