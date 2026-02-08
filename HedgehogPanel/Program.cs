@@ -7,6 +7,7 @@ using HedgehogPanel.API;
 using HedgehogPanel.Core.Logging;
 using HedgehogPanel.Core.Database;
 using HedgehogPanel.Core.Managers;
+using HedgehogPanel.Core.Configuration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -25,26 +26,42 @@ class Program
     {
         try
         {
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Information()
+            Env.Load();
+        }
+        catch { /* ignore */ }
+
+        var config = ConfigLoader.Load(args);
+
+        try
+        {
+            var loggerConfig = new LoggerConfiguration()
+                .MinimumLevel.Is(Enum.TryParse<Serilog.Events.LogEventLevel>(config.Logging.Level, true, out var level) ? level : Serilog.Events.LogEventLevel.Information)
                 .Enrich.FromLogContext()
                 .Enrich.WithMachineName()
-                .Enrich.WithThreadId()
-                .WriteTo.Console(
+                .Enrich.WithThreadId();
+
+            if (config.Logging.LogToConsole)
+            {
+                loggerConfig.WriteTo.Console(
                     restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug,
-                    outputTemplate:
-                    "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level}] ({SourceContext}) {Message:lj}{NewLine}{Exception}"
-                )
-                .WriteTo.File(
-                    "logs/hedgehog-panel-.log",
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level}] ({SourceContext}) {Message:lj}{NewLine}{Exception}"
+                );
+            }
+
+            if (config.Logging.LogToFile)
+            {
+                loggerConfig.WriteTo.File(
+                    config.Logging.File.Path.Replace("{Date}", ""),
                     rollingInterval: RollingInterval.Day,
-                    retainedFileCountLimit: 14,
+                    retainedFileCountLimit: config.Logging.File.MaxFiles,
+                    fileSizeLimitBytes: config.Logging.File.MaxSizeMB * 1024 * 1024,
                     shared: true,
                     restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Debug,
-                    outputTemplate:
-                    "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] ({SourceContext}) {Message:lj}{NewLine}{Exception}"
-                )
-                .CreateLogger();
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] ({SourceContext}) {Message:lj}{NewLine}{Exception}"
+                );
+            }
+
+            Log.Logger = loggerConfig.CreateLogger();
         }
         catch (Exception ex)
         {
@@ -61,27 +78,43 @@ class Program
         logger.Information("Initializing builder...");
 
         var builder = WebApplication.CreateBuilder(args);
-        logger.Information("Builder initialized.");
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            if (System.Net.IPAddress.TryParse(config.Server.ListenAddress, out var addr))
+                options.Listen(addr, config.Server.Port);
+            else
+                options.ListenAnyIP(config.Server.Port);
+        });
+        logger.Information("Builder initialized. Listening on {Address}:{Port}", config.Server.ListenAddress, config.Server.Port);
         builder.Host.UseSerilog();
-        try
+        
+        builder.Services.AddSingleton(config);
+
+        if (config.Security.Cors.Enabled)
         {
-            Env.Load();
-            logger.Information("Loaded environment variables from .env (if present).");
-        }
-        catch (Exception ex)
-        {
-            logger.Warning(ex, "Failed to load .env file; proceeding with process environment variables only.");
+            builder.Services.AddCors(options =>
+            {
+                options.AddDefaultPolicy(policy =>
+                {
+                    policy.WithOrigins(config.Security.Cors.AllowedOrigins)
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                    if (!config.Security.Cors.AllowedOrigins.Contains("*"))
+                    {
+                        policy.AllowCredentials();
+                    }
+                });
+            });
         }
 
         logger.Information("Configuring services...");
 
         // Database configuration
-        var dbHost = Env.GetString("DB_HOST", "localhost");
-        var dbPort = Env.GetInt("DB_PORT", 5432);
-        var dbUser = Env.GetString("DB_USER") ?? throw new InvalidOperationException("DB_USER must be set.");
-        var dbPass = Env.GetString("DB_PASSWORD") ?? throw new InvalidOperationException("DB_PASSWORD must be set.");
-        var dbName = Env.GetString("DB_NAME") ?? throw new InvalidOperationException("DB_NAME must be set.");
-        var connectionString = $"Host={dbHost};Port={dbPort};Username={dbUser};Password={dbPass};Database={dbName}";
+        if (string.IsNullOrEmpty(config.Database.Username)) throw new InvalidOperationException("DB_USER (Database.Username) must be set.");
+        if (string.IsNullOrEmpty(config.Database.Password)) throw new InvalidOperationException("DB_PASSWORD (Database.Password) must be set.");
+        if (string.IsNullOrEmpty(config.Database.Name)) throw new InvalidOperationException("DB_NAME (Database.Name) must be set.");
+        
+        var connectionString = config.Database.ConnectionString;
 
         builder.Services.AddSingleton<NpgsqlDataSource>(_ => NpgsqlDataSource.Create(connectionString));
         builder.Services.AddSingleton<IDbConnectionFactory, NpgsqlConnectionFactory>();
@@ -129,7 +162,7 @@ class Program
                 var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
                 return RateLimitPartition.GetSlidingWindowLimiter($"global:{ip}", _ => new SlidingWindowRateLimiterOptions
                 {
-                    PermitLimit = 200,
+                    PermitLimit = config.Security.RateLimit.Enabled ? config.Security.RateLimit.RequestsPerMinute : 1000,
                     Window = TimeSpan.FromMinutes(1),
                     SegmentsPerWindow = 4,
                     QueueLimit = 0,
@@ -157,7 +190,7 @@ class Program
         builder.Services.AddScoped<HedgehogPanel.Core.Security.IAccountLockoutService, HedgehogPanel.Core.Security.AccountLockoutService>();
 
         logger.Information("Setting up authentication and authorization...");
-        var jwtSecret = HedgehogPanel.Core.Config.JwtSecret;
+        var jwtSecret = config.Auth.Jwt.Secret;
         var jwtKeyBytes = !string.IsNullOrWhiteSpace(jwtSecret) ? Encoding.UTF8.GetBytes(jwtSecret) : Array.Empty<byte>();
         var jwtEnabled = jwtKeyBytes.Length >= 32;
 
@@ -192,9 +225,9 @@ class Program
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
-                    ValidIssuer = HedgehogPanel.Core.Config.JwtIssuer,
+                    ValidIssuer = config.Auth.Jwt.Issuer,
                     ValidateAudience = true,
-                    ValidAudience = HedgehogPanel.Core.Config.JwtAudience,
+                    ValidAudience = config.Auth.Jwt.Audience,
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(jwtKeyBytes),
                     ValidateLifetime = true,
@@ -244,6 +277,10 @@ class Program
         logger.Information("HedgehogLogger initialized with DatabaseLoggerService.");
         
         app.UseSerilogRequestLogging();
+        if (config.Security.Cors.Enabled)
+        {
+            app.UseCors();
+        }
         if (!app.Environment.IsDevelopment())
         {
             app.UseExceptionHandler("/error");
