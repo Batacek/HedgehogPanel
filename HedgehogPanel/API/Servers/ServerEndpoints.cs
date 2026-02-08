@@ -1,5 +1,6 @@
 using HedgehogPanel.Core.Managers;
 using HedgehogPanel.Core.Logging;
+using HedgehogPanel.Core.Store;
 
 namespace HedgehogPanel.API.Servers;
 
@@ -9,7 +10,7 @@ public static class ServerEndpoints
     public static IEndpointRouteBuilder MapServerEndpoints(this IEndpointRouteBuilder endpoints)
     {
         Logger.Information("Mapping Server endpoints...");
-        endpoints.MapGet("/api/servers", async (HttpContext ctx, IAccountManager accountManager) =>
+        endpoints.MapGet("/api/servers", async (HttpContext ctx, IDataProvider dataProvider) =>
         {
             var userGuidStr = ctx.User?.FindFirst("guid")?.Value;
             if (string.IsNullOrEmpty(userGuidStr) || !Guid.TryParse(userGuidStr, out var userGuid))
@@ -21,7 +22,7 @@ public static class ServerEndpoints
             try
             {
                 Logger.Debug("Fetching servers for user {UserGuid}...", userGuid);
-                var servers = await accountManager.GetServerListAsync(userGuid);
+                var servers = await dataProvider.GetServersByUserIdAsync(userGuid);
                 var serverList = new List<object>();
                 foreach (var server in servers)
                 {
