@@ -12,8 +12,9 @@ public class Account
     public string? LastName { get; set; }
     public Group[] Groups { get; set; }
     public bool IsAdmin { get; private set; }
+    public uint RowVersion { get; set; }
     
-    internal Account(Guid guid, byte id, string username, string email, string firstName, string middleName, string lastName, Group[] groups)
+    internal Account(Guid guid, byte id, string username, string email, string firstName, string middleName, string lastName, Group[] groups, uint rowVersion = 0)
     {
         GUID = guid;
         Id = id;
@@ -23,6 +24,7 @@ public class Account
         MiddleName = middleName;
         LastName = lastName;
         Groups = groups ?? throw new ArgumentNullException(nameof(groups));
+        RowVersion = rowVersion;
         
         IsAdmin = id == 0;
     }
