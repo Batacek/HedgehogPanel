@@ -8,6 +8,7 @@ using HedgehogPanel.Core.Logging;
 using HedgehogPanel.Core.Database;
 using HedgehogPanel.Core.Managers;
 using HedgehogPanel.Core.Configuration;
+using HedgehogPanel.Core.Store;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -118,6 +119,9 @@ class Program
 
         builder.Services.AddSingleton<NpgsqlDataSource>(_ => NpgsqlDataSource.Create(connectionString));
         builder.Services.AddSingleton<IDbConnectionFactory, NpgsqlConnectionFactory>();
+
+        builder.Services.AddSingleton<IInMemoryStore, InMemoryStore>();
+        builder.Services.AddSingleton<IDataProvider, DataProvider>();
 
         builder.Services.AddSingleton<DatabaseLoggerService>();
         builder.Services.AddSingleton<IAccountManager, AccountManager>(sp => 
