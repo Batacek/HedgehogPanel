@@ -15,8 +15,9 @@ public class Server
     public UserManagment.Account? OwnerAccount { get; private set; }
     public UserManagment.Group? OwnerGroup { get; private set; }
     public DateTime CreatedAt { get; private set; }
+    public uint RowVersion { get; set; }
 
-    internal Server(Guid guid, byte id, string name, ServerConfig config, Service[] services, Account? ownerAccount, Group? ownerGroup, DateTime createdAt)
+    internal Server(Guid guid, byte id, string name, ServerConfig config, Service[] services, Account? ownerAccount, Group? ownerGroup, DateTime createdAt, uint rowVersion = 0)
     {
         GUID = guid;
         Id = id;
@@ -26,6 +27,7 @@ public class Server
         OwnerAccount = ownerAccount;
         OwnerGroup = ownerGroup;
         CreatedAt = createdAt;
+        RowVersion = rowVersion;
         Logger.Information("Server created: {Name} (GUID: {Guid}, Id: {Id}, OwnerAccount: {OwnerAccount}, OwnerGroup: {OwnerGroup}, CreatedAt: {CreatedAt})", Name, GUID, Id, OwnerAccount?.Username, OwnerGroup?.Name, CreatedAt);
     }
 }
