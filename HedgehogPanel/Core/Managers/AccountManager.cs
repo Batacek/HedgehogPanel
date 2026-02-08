@@ -25,7 +25,7 @@ public class AccountManager : IAccountManager
 
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
-        const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname
+        const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname, xmin::text::int
                               FROM users
                               WHERE username = @u
                                 AND password_hash = encode(digest(@p, 'sha256'), 'hex')
@@ -46,9 +46,10 @@ public class AccountManager : IAccountManager
         var email = reader.GetString(2);
         var uname = reader.GetString(1);
         var guid = reader.GetGuid(0);
+        var xmin = (uint)reader.GetInt32(6);
 
         byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>());
+        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>(), xmin);
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
         _logger.Information("User {Username} authenticated. Account GUID: {Guid}.", uname, guid);
         return acc;
@@ -60,7 +61,7 @@ public class AccountManager : IAccountManager
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
 
-        const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname
+        const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname, xmin::text::int
                               FROM users WHERE username = @u LIMIT 1";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@u", username);
@@ -77,8 +78,9 @@ public class AccountManager : IAccountManager
         var email = reader.GetString(2);
         var uname = reader.GetString(1);
         var guid = reader.GetGuid(0);
+        var xmin = (uint)reader.GetInt32(6);
         byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>());
+        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>(), xmin);
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
         _logger.Debug("Fetched account {Username} with GUID {Guid}.", uname, guid);
         return acc;
@@ -118,7 +120,7 @@ public class AccountManager : IAccountManager
         return acc;
     }
 
-    public async Task<bool> UpdateAccountAsync(string username, string newEmail, string? firstName = null, string? middleName = null, string? lastName = null, string? newPassword = null, string? ip = "unknown", Guid? actorGuid = null)
+    public async Task<bool> UpdateAccountAsync(string username, string newEmail, string? firstName = null, string? middleName = null, string? lastName = null, string? newPassword = null, string? ip = "unknown", Guid? actorGuid = null, uint? expectedVersion = null)
     {
         _logger.Information("Updating account {Username}...", username);
         using var conn = await _connectionFactory.CreateConnectionAsync();
@@ -129,7 +131,7 @@ public class AccountManager : IAccountManager
                                   middlename = @m,
                                   lastname = @l,
                                   password_hash = CASE WHEN @p IS NULL THEN password_hash ELSE encode(digest(@p, 'sha256'), 'hex') END
-                              WHERE username = @u
+                              WHERE username = @u AND (@expectedVersion IS NULL OR xmin::text::int = @expectedVersion)
                               RETURNING uuid";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@e", newEmail);
@@ -138,6 +140,7 @@ public class AccountManager : IAccountManager
         cmd.Parameters.AddWithValue("@l", (object?)lastName ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@p", (object?)newPassword ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@u", username);
+        cmd.Parameters.AddWithValue("@expectedVersion", expectedVersion.HasValue ? (object)expectedVersion.Value : DBNull.Value);
         
         var userUuid = await cmd.ExecuteScalarAsync() as Guid?;
         var success = userUuid != null;
@@ -211,7 +214,8 @@ public class AccountManager : IAccountManager
         _logger.Debug("Fetching server list for user {UserId}...", userId);
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
-        const string sqlSelectIds = @"SELECT s.uuid, s.name, s.description, s.created_at
+
+        const string sqlSelectIds = @"SELECT s.uuid, s.name, s.description, s.created_at, s.xmin::text::int
                                     FROM servers s
                                     INNER JOIN server_owners so ON s.uuid = so.server_uuid
                                     WHERE so.user_uuid = @u";
@@ -224,7 +228,8 @@ public class AccountManager : IAccountManager
             var serverUuid = reader.GetGuid(0);
             var name = reader.GetString(1);
             var createdAt = reader.IsDBNull(3) ? DateTime.UtcNow : reader.GetDateTime(3);
-            var server = new Server(serverUuid, 0, name, new ServerConfig(), Array.Empty<HedgehogPanel.Services.Service>(), null, null, createdAt);
+            var xmin = (uint)reader.GetInt32(4);
+            var server = new Server(serverUuid, 0, name, new ServerConfig(), Array.Empty<HedgehogPanel.Services.Service>(), null, null, createdAt, xmin);
             list.Add(server);
         }
         _logger.Information("Fetched {Count} servers for user {UserId}.", list.Count, userId);
