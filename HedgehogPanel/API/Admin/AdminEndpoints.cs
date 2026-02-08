@@ -2,6 +2,7 @@ using System.Security.Claims;
 using HedgehogPanel.Core.Managers;
 using Npgsql;
 using HedgehogPanel.Core.Logging;
+using HedgehogPanel.Core.Store;
 
 namespace HedgehogPanel.API.Admin;
 
@@ -28,7 +29,8 @@ public static class AdminEndpoints
                 firstName = u.FirstName,
                 middleName = u.MiddleName,
                 lastName = u.LastName,
-                isAdmin = u.IsAdmin
+                isAdmin = u.IsAdmin,
+                rowVersion = u.RowVersion
             }));
         }).RequireAuthorization();
 
@@ -99,6 +101,7 @@ public static class AdminEndpoints
 
             if (ok)
             {
+                if (targetGuid.HasValue) dataProvider.InvalidateAccount(targetGuid.Value);
                 await Logger.LogSecurityEventAsync(new SecurityEvent(
                     "User.Deleted",
                     targetGuid,
@@ -143,10 +146,11 @@ public static class AdminEndpoints
             }
         }).RequireAuthorization();
 
-        group.MapDelete("/servers/{id}", async (string id, IServerManager serverManager) =>
+        group.MapDelete("/servers/{id}", async (string id, IServerManager serverManager, IDataProvider dataProvider) =>
         {
             if (!Guid.TryParse(id, out var guid)) return Results.BadRequest(new { error = "Invalid server id." });
             var ok = await serverManager.DeleteServerAsync(guid);
+            if (ok) dataProvider.InvalidateServer(guid);
             return ok ? Results.Ok(new { success = true }) : Results.NotFound(new { error = "Server not found." });
         }).RequireAuthorization();;
 
