@@ -8,6 +8,7 @@ using System.IdentityModel.Tokens.Jwt;
 using HedgehogPanel.Core;
 using HedgehogPanel.Core.Security;
 using HedgehogPanel.Core.Logging;
+using HedgehogPanel.Core.Configuration;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace HedgehogPanel.API.Auth;
@@ -21,7 +22,7 @@ public static class AuthEndpoints
         Logger.Information("Mapping Auth endpoints...");
         
         // Login API
-        endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req, IAccountLockoutService lockoutSvc, IAccountManager accountManager) =>
+        endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req, IAccountLockoutService lockoutSvc, IAccountManager accountManager, HedgehogConfig config) =>
         {
             if (req is null || string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
             {
@@ -106,7 +107,7 @@ public static class AuthEndpoints
                 string? token = null;
                 try
                 {
-                    token = GenerateJwtToken(claims);
+                    token = GenerateJwtToken(claims, config);
                 }
                 catch (Exception ex)
                 {
@@ -189,18 +190,18 @@ public static class AuthEndpoints
         return endpoints;
     }
 
-    private static string GenerateJwtToken(List<Claim> claims)
+    private static string GenerateJwtToken(List<Claim> claims, HedgehogConfig config)
     {
-        var secret = Config.JwtSecret;
+        var secret = config.Auth.Jwt.Secret;
         if (string.IsNullOrWhiteSpace(secret))
         {
-            Logger.Error("JWT_SECRET is not configured. Add JWT_SECRET to your .env file.");
+            Logger.Error("JWT secret is not configured in appsettings.json or environment variables.");
             throw new InvalidOperationException("JWT secret not configured");
         }
         var keyBytes = Encoding.UTF8.GetBytes(secret);
         if (keyBytes.Length < 32)
         {
-            Logger.Error("JWT_SECRET must be at least 32 bytes (256 bits). Current length: {Length} bytes.", keyBytes.Length);
+            Logger.Error("JWT secret must be at least 32 bytes (256 bits). Current length: {Length} bytes.", keyBytes.Length);
             throw new InvalidOperationException("JWT secret too short (min 32 bytes)");
         }
 
@@ -208,30 +209,30 @@ public static class AuthEndpoints
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            issuer: Config.JwtIssuer,
-            audience: Config.JwtAudience,
+            issuer: config.Auth.Jwt.Issuer,
+            audience: config.Auth.Jwt.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(1),
+            expires: DateTime.UtcNow.AddMinutes(config.Auth.Jwt.ExpiresInMinutes),
             signingCredentials: credentials
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public static bool VerifyToken(string token)
+    public static bool VerifyToken(string token, HedgehogConfig config)
     {
         try
         {
-            var secret = Config.JwtSecret;
+            var secret = config.Auth.Jwt.Secret;
             if (string.IsNullOrWhiteSpace(secret))
             {
-                Logger.Warning("JWT_SECRET is not configured; token verification will fail.");
+                Logger.Warning("JWT secret is not configured; token verification will fail.");
                 return false;
             }
             var keyBytes = Encoding.UTF8.GetBytes(secret);
             if (keyBytes.Length < 32)
             {
-                Logger.Warning("JWT_SECRET is too short ({Length} bytes); token verification will fail.", keyBytes.Length);
+                Logger.Warning("JWT secret is too short ({Length} bytes); token verification will fail.", keyBytes.Length);
                 return false;
             }
             var key = new SymmetricSecurityKey(keyBytes);
@@ -242,9 +243,9 @@ public static class AuthEndpoints
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = key,
                 ValidateIssuer = true,
-                ValidIssuer = Config.JwtIssuer,
+                ValidIssuer = config.Auth.Jwt.Issuer,
                 ValidateAudience = true,
-                ValidAudience = Config.JwtAudience,
+                ValidAudience = config.Auth.Jwt.Audience,
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.Zero
             }, out SecurityToken validatedToken);
