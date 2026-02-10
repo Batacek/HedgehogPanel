@@ -120,10 +120,13 @@ class Program
         builder.Services.AddSingleton<NpgsqlDataSource>(_ => NpgsqlDataSource.Create(connectionString));
         builder.Services.AddSingleton<IDbConnectionFactory, NpgsqlConnectionFactory>();
 
+        builder.Services.AddSingleton<DatabaseLoggerService>();
+        builder.Services.AddSingleton<ILoggerService>(sp => sp.GetRequiredService<DatabaseLoggerService>());
+
+        HedgehogLogger.Initialize(builder.Services.BuildServiceProvider().GetRequiredService<DatabaseLoggerService>());
+
         builder.Services.AddSingleton<IInMemoryStore, InMemoryStore>();
         builder.Services.AddSingleton<IDataProvider, DataProvider>();
-
-        builder.Services.AddSingleton<DatabaseLoggerService>();
         builder.Services.AddSingleton<IAccountManager, AccountManager>(sp => 
             new AccountManager(HedgehogLogger.ForContext<AccountManager>(), sp.GetRequiredService<IDbConnectionFactory>()));
         builder.Services.AddSingleton<IServerManager, ServerManager>(sp => 
