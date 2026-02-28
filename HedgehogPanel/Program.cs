@@ -223,7 +223,7 @@ class Program
                 options.LoginPath = "/html/login.html";
                 options.Cookie.Name = "HedgehogAuth";
                 options.Cookie.HttpOnly = true;
-                options.Cookie.SameSite = SameSiteMode.Lax;
+                options.Cookie.SameSite = builder.Environment.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict;
                 options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
                 options.SlidingExpiration = true;
             })
@@ -251,7 +251,7 @@ class Program
                     options.LoginPath = "/html/login.html";
                     options.Cookie.Name = "HedgehogAuth";
                     options.Cookie.HttpOnly = true;
-                    options.Cookie.SameSite = SameSiteMode.Lax;
+                    options.Cookie.SameSite = builder.Environment.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict;
                     options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
                     options.SlidingExpiration = true;
                 });
@@ -273,7 +273,6 @@ class Program
         });
         logger.Information("Antiforgery configured.");
 
-
         logger.Information("Building application...");
         var app = builder.Build();
         logger.Information("Application built.");
@@ -283,6 +282,24 @@ class Program
         HedgehogLogger.Initialize(dbLogger);
         logger.Information("HedgehogLogger initialized with DatabaseLoggerService.");
         
+        // Content Security Policy (CSP) and other security headers
+        app.Use(async (context, next) =>
+        {
+            context.Response.Headers.Append("Content-Security-Policy", 
+                "default-src 'self'; " +
+                "script-src 'self' 'unsafe-inline'; " + // Allow inline for fragments, but 'self' is primary
+                "style-src 'self' 'unsafe-inline'; " +
+                "img-src 'self' data:; " +
+                "font-src 'self'; " +
+                "connect-src 'self'; " +
+                "frame-ancestors 'none'; " +
+                "form-action 'self';");
+            context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+            context.Response.Headers.Append("X-Frame-Options", "DENY");
+            context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+            await next();
+        });
+
         app.UseSerilogRequestLogging();
         if (config.Security.Cors.Enabled)
         {
@@ -290,7 +307,21 @@ class Program
         }
         if (!app.Environment.IsDevelopment())
         {
-            app.UseExceptionHandler("/error");
+            app.UseExceptionHandler(errApp =>
+            {
+                errApp.Run(async context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    context.Response.ContentType = "application/json";
+                    var problem = new
+                    {
+                        title = "An error occurred while processing your request.",
+                        status = 500,
+                        traceId = context.TraceIdentifier
+                    };
+                    await context.Response.WriteAsJsonAsync(problem);
+                });
+            });
         }
         // Rate Limiting must be before authentication
         app.UseRateLimiter();
@@ -374,6 +405,18 @@ class Program
         });
         logger.Information("Page protection configured.");
         
+        app.UseAntiforgery();
+
+        // Middleware to distribute Antiforgery token via cookie for all requests
+        app.Use(async (context, next) =>
+        {
+            var antiforgery = context.RequestServices.GetRequiredService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>();
+            var tokens = antiforgery.GetAndStoreTokens(context);
+            context.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, 
+                new CookieOptions { HttpOnly = false, SameSite = SameSiteMode.Lax, Secure = !app.Environment.IsDevelopment() });
+            await next();
+        });
+
         logger.Information("Configuring endpoints...");
         app.UseStaticFiles(new StaticFileOptions
         {
@@ -382,7 +425,31 @@ class Program
         });
         logger.Information("Endpoints configured.");
         app.UseAuthorization();
-        app.UseAntiforgery();
+
+        // Middleware to enforce Antiforgery for state-changing API requests
+        app.Use(async (context, next) =>
+        {
+            var path = context.Request.Path;
+            var method = context.Request.Method;
+            var isApi = path.StartsWithSegments("/api");
+            var isStateChanging = method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE";
+
+            if (isApi && isStateChanging)
+            {
+                var antiforgery = context.RequestServices.GetRequiredService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>();
+                try
+                {
+                    await antiforgery.ValidateRequestAsync(context);
+                }
+                catch (Microsoft.AspNetCore.Antiforgery.AntiforgeryValidationException)
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    await context.Response.WriteAsJsonAsync(new { error = "Antiforgery token validation failed." });
+                    return;
+                }
+            }
+            await next();
+        });
 
         logger.Information("Mapping redirect for root path...");
         app.MapGet("/", (HttpContext ctx, IWebHostEnvironment env) =>
@@ -398,8 +465,16 @@ class Program
         app.MapGet("/error", (HttpContext ctx) =>
         {
             var exception = ctx.Features.Get<IExceptionHandlerFeature>()?.Error;
-            var detail = app.Environment.IsDevelopment() ? exception?.ToString() : null;
-            return Results.Problem(title: "An error occurred while processing your request.", statusCode: 500, detail: detail);
+            if (app.Environment.IsDevelopment())
+            {
+                return Results.Problem(
+                    title: "An error occurred while processing your request.",
+                    detail: exception?.ToString(),
+                    statusCode: 500);
+            }
+            return Results.Problem(
+                title: "An error occurred while processing your request.",
+                statusCode: 500);
         }).AllowAnonymous();
 
         logger.Information("Mapping API endpoints...");
