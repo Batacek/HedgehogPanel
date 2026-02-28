@@ -87,7 +87,19 @@
   }
 
   async function fetchJson(url, options) {
-    const res = await fetch(url, Object.assign({ credentials: 'same-origin' }, options||{}));
+    const xsrfToken = document.cookie.split('; ')
+      .find(row => row.startsWith('XSRF-TOKEN='))
+      ?.split('=')
+      .slice(1)
+      .join('=');
+    
+    const defaultHeaders = {};
+    if (xsrfToken) defaultHeaders['X-CSRF-Token'] = xsrfToken;
+
+    const res = await fetch(url, Object.assign({ 
+      credentials: 'same-origin',
+      headers: defaultHeaders
+    }, options||{}));
     if (res.status === 401 || res.status === 403) {
       // Let callers decide how to show; still provide a clear error
       const err = new Error('Access denied. Admin only.');
@@ -122,7 +134,16 @@
         btn.addEventListener('click', async ()=>{
           if (!confirm('Delete user '+btn.dataset.delUser+'?')) return;
           try {
-            const res = await fetch('/api/admin/users/'+encodeURIComponent(btn.dataset.delUser), { method:'DELETE', credentials:'same-origin' });
+            const xsrfToken = document.cookie.split('; ')
+              .find(row => row.startsWith('XSRF-TOKEN='))
+              ?.split('=')
+              .slice(1)
+              .join('=');
+            const res = await fetch('/api/admin/users/'+encodeURIComponent(btn.dataset.delUser), { 
+              method:'DELETE', 
+              headers: { 'X-CSRF-Token': xsrfToken || '' },
+              credentials:'same-origin' 
+            });
             if (res.ok) {
               await loadUsers();
             } else {
@@ -165,7 +186,16 @@
         btn.addEventListener('click', async ()=>{
           if (!confirm('Delete server?')) return;
           try {
-            const res = await fetch('/api/admin/servers/'+encodeURIComponent(btn.dataset.delServer), { method:'DELETE', credentials:'same-origin' });
+            const xsrfToken = document.cookie.split('; ')
+              .find(row => row.startsWith('XSRF-TOKEN='))
+              ?.split('=')
+              .slice(1)
+              .join('=');
+            const res = await fetch('/api/admin/servers/'+encodeURIComponent(btn.dataset.delServer), { 
+              method:'DELETE', 
+              headers: { 'X-CSRF-Token': xsrfToken || '' },
+              credentials:'same-origin' 
+            });
             if (res.ok) {
               await loadServers();
             } else {
@@ -210,7 +240,20 @@
     const btn = e.submitter || e.target.querySelector('button[type="submit"]');
     try {
       setBusy(btn, true);
-      const res = await fetch('/api/admin/users', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload), credentials:'same-origin' });
+      const xsrfToken = document.cookie.split('; ')
+        .find(row => row.startsWith('XSRF-TOKEN='))
+        ?.split('=')
+        .slice(1)
+        .join('=');
+      const res = await fetch('/api/admin/users', { 
+        method:'POST', 
+        headers:{ 
+          'Content-Type':'application/json',
+          'X-CSRF-Token': xsrfToken || ''
+        }, 
+        body: JSON.stringify(payload), 
+        credentials:'same-origin' 
+      });
       if (res.ok) {
         setNote(msgId, 'User created successfully.', 'success');
         e.target.reset();
@@ -235,7 +278,20 @@
     const btn = e.submitter || e.target.querySelector('button[type="submit"]');
     try {
       setBusy(btn, true);
-      const res = await fetch('/api/admin/servers', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload), credentials:'same-origin' });
+      const xsrfToken = document.cookie.split('; ')
+        .find(row => row.startsWith('XSRF-TOKEN='))
+        ?.split('=')
+        .slice(1)
+        .join('=');
+      const res = await fetch('/api/admin/servers', { 
+        method:'POST', 
+        headers:{ 
+          'Content-Type':'application/json',
+          'X-CSRF-Token': xsrfToken || ''
+        }, 
+        body: JSON.stringify(payload), 
+        credentials:'same-origin' 
+      });
       if (res.ok) {
         setNote(msgId, 'Server created successfully.', 'success');
         e.target.reset();
