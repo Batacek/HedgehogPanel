@@ -178,7 +178,14 @@ function initTopbarInteractions() {
     closeMenu();
     if (action === 'logout') {
       try {
-        await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+        const xsrfToken = document.cookie.split('; ')
+          .find(row => row.startsWith('XSRF-TOKEN='))
+          ?.split('=')[1];
+        await fetch('/api/logout', { 
+          method: 'POST', 
+          headers: { 'X-CSRF-Token': xsrfToken || '' },
+          credentials: 'same-origin' 
+        });
       } catch (err) {
       } finally {
         window.location.href = '/html/login.html';
