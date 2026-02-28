@@ -134,10 +134,21 @@
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
         if (!username || !password) { showError('Please enter both username and password.'); return; }
+        
+        // Read Antiforgery token from cookie
+        const xsrfToken = document.cookie.split('; ')
+          .find(row => row.startsWith('XSRF-TOKEN='))
+          ?.split('=')
+          .slice(1)
+          .join('=');
+
         try {
           const res = await fetch('/api/login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': xsrfToken || ''
+            },
             credentials: 'same-origin',
             body: JSON.stringify({ username, password })
           });
