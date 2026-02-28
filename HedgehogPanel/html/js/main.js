@@ -180,7 +180,9 @@ function initTopbarInteractions() {
       try {
         const xsrfToken = document.cookie.split('; ')
           .find(row => row.startsWith('XSRF-TOKEN='))
-          ?.split('=')[1];
+          ?.split('=')
+          .slice(1)
+          .join('=');
         await fetch('/api/logout', { 
           method: 'POST', 
           headers: { 'X-CSRF-Token': xsrfToken || '' },
