@@ -407,25 +407,6 @@ class Program
         
         app.UseAntiforgery();
 
-        // Middleware to distribute Antiforgery token via cookie for all requests
-        app.Use(async (context, next) =>
-        {
-            var antiforgery = context.RequestServices.GetRequiredService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>();
-            var tokens = antiforgery.GetAndStoreTokens(context);
-            context.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, 
-                new CookieOptions { HttpOnly = false, SameSite = SameSiteMode.Lax, Secure = !app.Environment.IsDevelopment() });
-            await next();
-        });
-
-        logger.Information("Configuring endpoints...");
-        app.UseStaticFiles(new StaticFileOptions
-        {
-            FileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.ContentRootPath, "html")),
-            RequestPath = "/html"
-        });
-        logger.Information("Endpoints configured.");
-        app.UseAuthorization();
-
         // Middleware to enforce Antiforgery for state-changing API requests
         app.Use(async (context, next) =>
         {
@@ -450,6 +431,25 @@ class Program
             }
             await next();
         });
+
+        // Middleware to distribute Antiforgery token via cookie for all requests
+        app.Use(async (context, next) =>
+        {
+            var antiforgery = context.RequestServices.GetRequiredService<Microsoft.AspNetCore.Antiforgery.IAntiforgery>();
+            var tokens = antiforgery.GetAndStoreTokens(context);
+            context.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!, 
+                new CookieOptions { HttpOnly = false, SameSite = SameSiteMode.Lax, Secure = !app.Environment.IsDevelopment() });
+            await next();
+        });
+
+        logger.Information("Configuring endpoints...");
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.ContentRootPath, "html")),
+            RequestPath = "/html"
+        });
+        logger.Information("Endpoints configured.");
+        app.UseAuthorization();
 
         logger.Information("Mapping redirect for root path...");
         app.MapGet("/", (HttpContext ctx, IWebHostEnvironment env) =>
