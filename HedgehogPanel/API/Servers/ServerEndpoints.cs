@@ -15,8 +15,8 @@ public static class ServerEndpoints
             var userGuidStr = ctx.User?.FindFirst("guid")?.Value;
             if (string.IsNullOrEmpty(userGuidStr) || !Guid.TryParse(userGuidStr, out var userGuid))
             {
-                Logger.Warning("/api/servers requested without valid user guid. Returning empty list.");
-                return Results.Ok(Array.Empty<object>());
+                Logger.Warning("/api/servers requested without valid user guid. Returning 401 Unauthorized.");
+                return Results.Unauthorized();
             }
 
             try
@@ -26,14 +26,14 @@ public static class ServerEndpoints
                 var serverList = new List<object>();
                 foreach (var server in servers)
                 {
+                    var isOwner = server.OwnerAccount?.GUID == userGuid;
                     serverList.Add(new
                     {
                         id = server.GUID.ToString(),
                         name = server.Name,
-                        owner = "You",        // current user is the owner
-                        role = "Owner",        // simplified role (owner)
-                        status = "Unknown"     // status not implemented yet
-                        // ToDo: fetch real owner name, role and status
+                        owner = server.OwnerAccount?.Name ?? server.OwnerAccount?.Username ?? "Unknown",
+                        role = isOwner ? "Owner" : "Member",
+                        status = "Unknown" // status not implemented yet
                     });
                 }
                 Logger.Information("Returning {Count} servers for user {UserGuid}.", serverList.Count, userGuid);
