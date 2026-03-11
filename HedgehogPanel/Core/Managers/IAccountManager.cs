@@ -41,6 +41,16 @@ public interface IAccountManager
     Task<Account?> GetAccountByUsernameAsync(string username);
 
     /// <summary>
+    /// Retrieves an account by its unique identifier.
+    /// </summary>
+    /// <param name="userId">The user's GUID.</param>
+    /// <returns>
+    /// An <see cref="Account"/> object representing the user associated with the specified identifier,
+    /// or <c>null</c> if no such account exists.
+    /// </returns>
+    Task<Account?> GetAccountByIdAsync(Guid userId);
+
+    /// <summary>
     /// Creates a new user account with the specified details.
     /// </summary>
     /// <param name="username">The desired username for the new account.</param>
