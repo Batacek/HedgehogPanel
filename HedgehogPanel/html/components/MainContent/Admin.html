@@ -42,6 +42,19 @@
   </div>
 </div>
 
+<div class="card">
+  <h3>Unlock Blocked User</h3>
+  <p>Unlock a user who has been blocked due to too many failed login attempts. You need to provide the username and the IP address from which the failed attempts originated.</p>
+  <div id="unlock-user-msg" class="note" hidden></div>
+  <form id="unlock-user-form">
+    <div class="form-row">
+      <label>Username<input name="username" required></label>
+      <label>Client IP Address<input name="clientIp" required placeholder="e.g., 192.168.123.45"></label>
+    </div>
+    <button type="submit">Unlock</button>
+  </form>
+</div>
+
 <div class="grid grid-2">
   <div class="card">
     <h3>Users</h3>
@@ -126,8 +139,8 @@
         listEl.innerHTML = '<div class="note">No users found.</div>';
         return;
       }
-      listEl.innerHTML = '<table class="table"><thead><tr><th>Username</th><th>Email</th><th>Name</th><th>Admin</th><th></th></tr></thead><tbody>'+
-        data.map(u => `<tr><td>${u.username}</td><td>${u.email||''}</td><td>${u.name||''}</td><td>${u.isAdmin? 'Yes':'No'}</td>`+
+      listEl.innerHTML = '<table class="table"><thead><tr><th>Username</th><th>Email</th><th>Name</th><th>Admin</th><th>Group</th><th></th></tr></thead><tbody>'+
+        data.map(u => `<tr><td>${u.username}</td><td>${u.email||''}</td><td>${u.name||''}</td><td>${u.isAdmin? 'Yes':'No'}</td><td>${u.highestPriorityGroup||'-'}</td>`+
         `<td>${u.username!=='admin'? `<button data-del-user="${u.username}">Delete</button>`:''}</td></tr>`).join('')+
         '</tbody></table>';
       listEl.querySelectorAll('[data-del-user]').forEach(btn=>{
@@ -302,6 +315,44 @@
       }
     } catch (err) {
       setNote(msgId, `Failed to create server: ${err.message||err}`, 'danger');
+    } finally {
+      setBusy(btn, false);
+    }
+  });
+
+  document.getElementById('unlock-user-form')?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const msgId = 'unlock-user-msg';
+    setNote(msgId, '');
+    const fd = new FormData(e.target);
+    const username = fd.get('username');
+    const clientIp = fd.get('clientIp');
+    const btn = e.submitter || e.target.querySelector('button[type="submit"]');
+    try {
+      setBusy(btn, true);
+      const xsrfToken = document.cookie.split('; ')
+        .find(row => row.startsWith('XSRF-TOKEN='))
+        ?.split('=')
+        .slice(1)
+        .join('=');
+      const res = await fetch('/api/admin/users/'+encodeURIComponent(username)+'/unlock', { 
+        method:'POST', 
+        headers:{ 
+          'Content-Type':'application/json',
+          'X-CSRF-Token': xsrfToken || ''
+        }, 
+        body: JSON.stringify({ clientIp }), 
+        credentials:'same-origin' 
+      });
+      if (res.ok) {
+        setNote(msgId, 'User unlocked successfully.', 'success');
+        e.target.reset();
+      } else {
+        const msg = await readError(res);
+        setNote(msgId, `Failed to unlock user: ${msg}`, 'danger');
+      }
+    } catch (err) {
+      setNote(msgId, `Failed to unlock user: ${err.message||err}`, 'danger');
     } finally {
       setBusy(btn, false);
     }
