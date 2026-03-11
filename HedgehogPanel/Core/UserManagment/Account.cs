@@ -11,7 +11,7 @@ public class Account
     public string? MiddleName { get; set; }
     public string? LastName { get; set; }
     public Group[] Groups { get; set; }
-    public bool IsAdmin { get; private set; }
+    public bool IsAdmin => Groups.Any(g => string.Equals(g.Name, "admin", StringComparison.OrdinalIgnoreCase));
     public uint RowVersion { get; set; }
     
     internal Account(Guid guid, byte id, string username, string email, string firstName, string middleName, string lastName, Group[] groups, uint rowVersion = 0)
@@ -25,7 +25,5 @@ public class Account
         LastName = lastName;
         Groups = groups ?? throw new ArgumentNullException(nameof(groups));
         RowVersion = rowVersion;
-        
-        IsAdmin = id == 0;
     }
 }
