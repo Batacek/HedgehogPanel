@@ -47,9 +47,11 @@ public class AccountManager : IAccountManager
         var uname = reader.GetString(1);
         var guid = reader.GetGuid(0);
         var xmin = (uint)reader.GetInt32(6);
+        await reader.CloseAsync();
 
+        var groups = await LoadUserGroupsAsync(guid, npgsqlConn);
         byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>(), xmin);
+        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, groups, xmin);
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
         _logger.Information("User {Username} authenticated. Account GUID: {Guid}.", uname, guid);
         return acc;
@@ -79,10 +81,47 @@ public class AccountManager : IAccountManager
         var uname = reader.GetString(1);
         var guid = reader.GetGuid(0);
         var xmin = (uint)reader.GetInt32(6);
+        await reader.CloseAsync();
+
+        var groups = await LoadUserGroupsAsync(guid, npgsqlConn);
         byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>(), xmin);
+        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, groups, xmin);
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
         _logger.Debug("Fetched account {Username} with GUID {Guid}.", uname, guid);
+        return acc;
+    }
+
+    public async Task<Account?> GetAccountByIdAsync(Guid userId)
+    {
+        _logger.Debug("Fetching account by id {UserId}...", userId);
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
+        const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname, xmin::text::int
+                              FROM users WHERE uuid = @id LIMIT 1";
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
+        cmd.Parameters.AddWithValue("@id", userId);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+        {
+            _logger.Information("No account found for id {UserId}.", userId);
+            return null;
+        }
+
+        var first = reader.IsDBNull(3) ? null : reader.GetString(3);
+        var middle = reader.IsDBNull(4) ? null : reader.GetString(4);
+        var last = reader.IsDBNull(5) ? null : reader.GetString(5);
+        var email = reader.GetString(2);
+        var uname = reader.GetString(1);
+        var guid = reader.GetGuid(0);
+        var xmin = (uint)reader.GetInt32(6);
+        await reader.CloseAsync();
+
+        var groups = await LoadUserGroupsAsync(guid, npgsqlConn);
+        byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
+        var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, groups, xmin);
+        acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        _logger.Debug("Fetched account {Username} with GUID {Guid} by id.", uname, guid);
         return acc;
     }
 
@@ -113,8 +152,11 @@ public class AccountManager : IAccountManager
         var first = reader.IsDBNull(3) ? null : reader.GetString(3);
         var middle = reader.IsDBNull(4) ? null : reader.GetString(4);
         var last = reader.IsDBNull(5) ? null : reader.GetString(5);
+        await reader.CloseAsync();
+
+        var groups = await LoadUserGroupsAsync(guid, npgsqlConn);
         byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-        var acc = new Account(guid, id, uname, emailOut, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>());
+        var acc = new Account(guid, id, uname, emailOut, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, groups);
         acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
         _logger.Information("Created account {Username} with GUID {Guid}.", uname, guid);
         return acc;
@@ -187,12 +229,13 @@ public class AccountManager : IAccountManager
         _logger.Debug("Listing accounts with limit {Limit} and offset {Offset}...", limit, offset);
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
         const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname FROM users ORDER BY created_at DESC LIMIT @lim OFFSET @off";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@lim", limit);
         cmd.Parameters.AddWithValue("@off", offset);
         await using var reader = await cmd.ExecuteReaderAsync();
-        var list = new List<Account>();
+        var userDataList = new List<(Guid guid, string uname, string email, string? first, string? middle, string? last)>();
         while (await reader.ReadAsync())
         {
             var guid = reader.GetGuid(0);
@@ -201,9 +244,17 @@ public class AccountManager : IAccountManager
             var first = reader.IsDBNull(3) ? null : reader.GetString(3);
             var middle = reader.IsDBNull(4) ? null : reader.GetString(4);
             var last = reader.IsDBNull(5) ? null : reader.GetString(5);
-            byte id = string.Equals(uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
-            var acc = new Account(guid, id, uname, email, first ?? string.Empty, middle ?? string.Empty, last ?? string.Empty, Array.Empty<Group>());
-            acc.Name = string.Join(" ", new[] { first, middle, last }.Where(s => !string.IsNullOrWhiteSpace(s)));
+            userDataList.Add((guid, uname, email, first, middle, last));
+        }
+        await reader.CloseAsync();
+
+        var list = new List<Account>();
+        foreach (var userData in userDataList)
+        {
+            var groups = await LoadUserGroupsAsync(userData.guid, npgsqlConn);
+            byte id = string.Equals(userData.uname, "admin", StringComparison.OrdinalIgnoreCase) ? (byte)0 : (byte)1;
+            var acc = new Account(userData.guid, id, userData.uname, userData.email, userData.first ?? string.Empty, userData.middle ?? string.Empty, userData.last ?? string.Empty, groups);
+            acc.Name = string.Join(" ", new[] { userData.first, userData.middle, userData.last }.Where(s => !string.IsNullOrWhiteSpace(s)));
             list.Add(acc);
         }
         _logger.Information("Listed {Count} accounts (limit={Limit}, offset={Offset}).", list.Count, limit, offset);
@@ -234,5 +285,26 @@ public class AccountManager : IAccountManager
         }
         _logger.Information("Fetched {Count} servers for user {UserId}.", list.Count, userId);
         return list;
+    }
+
+    private async Task<Group[]> LoadUserGroupsAsync(Guid userGuid, NpgsqlConnection connection)
+    {
+        const string sql = @"SELECT g.uuid, g.name, g.description
+                             FROM groups g
+                             INNER JOIN user_groups ug ON g.uuid = ug.group_uuid
+                             WHERE ug.user_uuid = @userGuid";
+        await using var cmd = new NpgsqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@userGuid", userGuid);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        var groups = new List<Group>();
+        byte groupId = 0;
+        while (await reader.ReadAsync())
+        {
+            var name = reader.GetString(1);
+            var description = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
+            // Priority is not stored in DB, using default value 0
+            groups.Add(new Group(groupId++, name, description, 0));
+        }
+        return groups.ToArray();
     }
 }
