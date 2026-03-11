@@ -87,6 +87,14 @@ public class AccountLockoutService : IAccountLockoutService
         return Task.FromResult<TimeSpan?>(null);
     }
 
+    public Task UnlockAccountAsync(string username, string clientIp)
+    {
+        var key = Key(username, clientIp);
+        _cache.Remove(key);
+        Logger.Information("Manually unlocked account {Username} from {IP} by admin.", username, clientIp);
+        return Task.CompletedTask;
+    }
+
     private LockoutInfo GetInfo(string username, string clientIp)
     {
         var key = Key(username, clientIp);
