@@ -37,6 +37,7 @@ CREATE TABLE groups (
 CREATE TABLE user_groups (
                              user_uuid UUID NOT NULL,
                              group_uuid UUID NOT NULL,
+                             priority INT NOT NULL DEFAULT 0,
                              assigned_at TIMESTAMP DEFAULT now(),
                              PRIMARY KEY (user_uuid, group_uuid),
                              FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE,
@@ -88,6 +89,10 @@ CREATE TABLE service_owners (
                                 FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE,
                                 FOREIGN KEY (group_uuid) REFERENCES groups(uuid) ON DELETE CASCADE
 );
+-- Indexes for user_groups table (for performance)
+CREATE INDEX idx_user_groups_user ON user_groups(user_uuid);
+CREATE INDEX idx_user_groups_group ON user_groups(group_uuid);
+CREATE INDEX idx_user_groups_user_priority ON user_groups(user_uuid, priority DESC);
 CREATE TABLE user_security_events (
                                       id               UUID PRIMARY KEY,
                                       user_id           UUID NULL,
@@ -147,20 +152,20 @@ VALUES ('admin', 'Administrators', NOW()),
        ('default', 'Default users', NOW());
 
 -- Add users to their respective groups
-INSERT INTO user_groups (user_uuid, group_uuid)
-SELECT u.uuid, g.uuid
+INSERT INTO user_groups (user_uuid, group_uuid, priority)
+SELECT u.uuid, g.uuid, 100
 FROM users u, groups g
 WHERE u.username = 'admin' AND g.name = 'admin';
 
-INSERT INTO user_groups (user_uuid, group_uuid)
-SELECT u.uuid, g.uuid
+INSERT INTO user_groups (user_uuid, group_uuid, priority)
+SELECT u.uuid, g.uuid, 0
 FROM users u, groups g
 WHERE u.username = 'default_user' AND g.name = 'default';
 
 -- Check inserted groups and memberships
 SELECT name, description FROM groups;
-SELECT u.username, g.name AS group_name
+SELECT u.username, g.name AS group_name, ug.priority
 FROM user_groups ug
 JOIN users u ON ug.user_uuid = u.uuid
 JOIN groups g ON ug.group_uuid = g.uuid
-ORDER BY u.username;
+ORDER BY u.username, ug.priority DESC;
