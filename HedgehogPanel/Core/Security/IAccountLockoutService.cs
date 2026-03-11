@@ -24,4 +24,9 @@ public interface IAccountLockoutService
     /// Returns the remaining lockout time if locked; otherwise null.
     /// </summary>
     Task<TimeSpan?> GetLockoutTimeRemainingAsync(string username, string clientIp);
+
+    /// <summary>
+    /// Unlocks the account immediately by removing lockout info for the given username and IP.
+    /// </summary>
+    Task UnlockAccountAsync(string username, string clientIp);
 }
