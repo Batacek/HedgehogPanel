@@ -69,14 +69,8 @@ public static class AuthEndpoints
             {
                 var account = await accountManager.AuthenticateAsync(username, password);
                 
-                // Warmup cache
-                _ = Task.Run(async () => {
-                    try {
-                        await dataProvider.WarmupAsync(account.GUID);
-                    } catch (Exception ex) {
-                        Logger.Error(ex, "Cache warmup failed for user {User}", account.GUID);
-                    }
-                });
+                // Warmup cache - fire-and-forget (no await, no wrapper)
+                _ = dataProvider.WarmupAsync(account.GUID);
 
                 var claims = new List<Claim>
                 {
@@ -85,6 +79,8 @@ public static class AuthEndpoints
                     new Claim("username", account.Username),
                     new Claim("guid", account.GUID.ToString())
                 };
+                
+                // Add role claims based on user groups
                 if (account.IsAdmin)
                 {
                     claims.Add(new Claim(ClaimTypes.Role, "Admin"));
