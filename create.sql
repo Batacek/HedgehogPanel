@@ -1,3 +1,34 @@
+/*
+============================================================================
+  ██╗  ██╗███████╗██████╗  ██████╗ ███████╗██╗  ██╗ ██████╗  ██████╗ 
+  ██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝██║  ██║██╔═══██╗██╔════╝ 
+  ███████║█████╗  ██║  ██║██║  ███╗█████╗  ███████║██║   ██║██║  ███╗
+  ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝  ██╔══██║██║   ██║██║   ██║
+  ██║  ██║███████╗██████╔╝╚██████╔╝███████╗██║  ██║╚██████╔╝╚██████╔╝
+  ╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ 
+                                                                       
+  ██████╗  █████╗ ████████╗ █████╗ ██████╗  █████╗ ███████╗███████╗
+  ██╔══██╗██╔══██╗╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔════╝
+  ██║  ██║███████║   ██║   ███████║██████╔╝███████║███████╗█████╗  
+  ██║  ██║██╔══██║   ██║   ██╔══██║██╔══██╗██╔══██║╚════██║██╔══╝  
+  ██████╔╝██║  ██║   ██║   ██║  ██║██████╔╝██║  ██║███████║███████╗
+  ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝
+
+  Database Name:    hedgehogdb
+  Version:          1.1.0
+  Created:          2026
+  
+  Description:      Database for Server Management System
+
+  Copyright:        © 2026 batacek.eu
+  License:          Apache-2.0 license (Check LICENSE file)
+
+  Database Engine:  PostgreSQL
+  Extension Used:   pgcrypto (UUID generation and password hashing)
+
+============================================================================
+*/
+
 -- Enable pgcrypto extension for UUID generation and hashing
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -16,12 +47,12 @@ DROP TABLE IF EXISTS user_security_events CASCADE;
 -- Users
 CREATE TABLE users (
                        uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                       username VARCHAR NOT NULL,
+                       username VARCHAR NOT NULL UNIQUE,
                        email VARCHAR NOT NULL UNIQUE,
                        firstname VARCHAR,
                        middlename VARCHAR,
                        lastname VARCHAR,
-                       password_hash VARCHAR NOT NULL,
+                       password_hash VARCHAR NOT NULL, -- Stores bcrypt hashes (via pgcrypto crypt())
                        created_at TIMESTAMP DEFAULT now()
 );
 
@@ -65,7 +96,7 @@ CREATE TABLE services (
 
 -- Server owners (many-to-many: users & groups)
 CREATE TABLE server_owners (
-                               server_uuid UUID PRIMARY KEY,
+                               server_uuid UUID NOT NULL,
                                user_uuid UUID,
                                group_uuid UUID,
                                assigned_at TIMESTAMP DEFAULT now(),
@@ -78,21 +109,42 @@ CREATE TABLE server_owners (
                                    )
 );
 
+-- Partial unique indexes for server_owners
+CREATE UNIQUE INDEX server_owners_user_uniq ON server_owners(server_uuid, user_uuid) WHERE user_uuid IS NOT NULL;
+CREATE UNIQUE INDEX server_owners_group_uniq ON server_owners(server_uuid, group_uuid) WHERE group_uuid IS NOT NULL;
+
 
 -- Service owners (many-to-many: users & groups)
 CREATE TABLE service_owners (
                                 service_uuid UUID NOT NULL,
-                                user_uuid UUID NULL,
-                                group_uuid UUID NULL,
+                                user_uuid UUID,
+                                group_uuid UUID,
                                 assigned_at TIMESTAMP DEFAULT now(),
                                 FOREIGN KEY (service_uuid) REFERENCES services(uuid) ON DELETE CASCADE,
                                 FOREIGN KEY (user_uuid) REFERENCES users(uuid) ON DELETE CASCADE,
-                                FOREIGN KEY (group_uuid) REFERENCES groups(uuid) ON DELETE CASCADE
+                                FOREIGN KEY (group_uuid) REFERENCES groups(uuid) ON DELETE CASCADE,
+                                CHECK (
+                                    (user_uuid IS NOT NULL AND group_uuid IS NULL)
+                                        OR (user_uuid IS NULL AND group_uuid IS NOT NULL)
+                                    )
 );
+
+-- Partial unique indexes for service_owners
+CREATE UNIQUE INDEX service_owners_user_uniq ON service_owners(service_uuid, user_uuid) WHERE user_uuid IS NOT NULL;
+CREATE UNIQUE INDEX service_owners_group_uniq ON service_owners(service_uuid, group_uuid) WHERE group_uuid IS NOT NULL;
+
 -- Indexes for user_groups table (for performance)
 CREATE INDEX idx_user_groups_user ON user_groups(user_uuid);
 CREATE INDEX idx_user_groups_group ON user_groups(group_uuid);
 CREATE INDEX idx_user_groups_user_priority ON user_groups(user_uuid, priority DESC);
+
+-- Indexes on foreign keys for performance
+CREATE INDEX idx_server_owners_user ON server_owners(user_uuid);
+CREATE INDEX idx_server_owners_group ON server_owners(group_uuid);
+CREATE INDEX idx_service_owners_user ON service_owners(user_uuid);
+CREATE INDEX idx_service_owners_group ON service_owners(group_uuid);
+CREATE INDEX idx_services_server ON services(server_uuid);
+
 CREATE TABLE user_security_events (
                                       id               UUID PRIMARY KEY,
                                       user_id           UUID NULL,
@@ -118,11 +170,12 @@ CREATE INDEX idx_user_security_events_actor_time
     ON user_security_events (actor_user_id, occurred_at_utc DESC);
 
 
--- Insert default users with hashed passwords
+-- Insert default users with hashed passwords (using bcrypt)
 INSERT INTO users (username, email, firstname, middlename, lastname, password_hash, created_at)
 VALUES
-    ('admin', 'admin@example.batacek.eu', 'Admin', NULL, 'User', encode(digest('admin123', 'sha256'), 'hex'), NOW()),
-    ('default_user', 'default@example.batacek.eu', 'Default', NULL, 'User', encode(digest('user123', 'sha256'), 'hex'), NOW());
+    ('admin', 'admin@example.batacek.eu', 'Admin', NULL, 'User', crypt('admin123', gen_salt('bf')), NOW()),
+    ('default_user', 'default@example.batacek.eu', 'Default', NULL, 'User', crypt('user123', gen_salt('bf')), NOW())
+ON CONFLICT (username) DO NOTHING;
 
 -- Check inserted users
 SELECT * FROM users;
