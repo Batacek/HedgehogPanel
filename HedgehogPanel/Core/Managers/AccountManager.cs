@@ -25,10 +25,11 @@ public class AccountManager : IAccountManager
 
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
         const string sql = @"SELECT uuid, username, email, firstname, middlename, lastname, xmin::text::int
                               FROM users
                               WHERE username = @u
-                                AND password_hash = encode(digest(@p, 'sha256'), 'hex')
+                                AND password_hash = crypt(@p, password_hash)
                               LIMIT 1";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@u", username);
@@ -134,8 +135,9 @@ public class AccountManager : IAccountManager
         _logger.Information("Creating account for username {Username}...", username);
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
         const string sql = @"INSERT INTO users (username, email, firstname, middlename, lastname, password_hash)
-                              VALUES (@u, @e, @f, @m, @l, encode(digest(@p, 'sha256'), 'hex'))
+                              VALUES (@u, @e, @f, @m, @l, crypt(@p, gen_salt('bf')))
                               RETURNING uuid, username, email, firstname, middlename, lastname";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@u", username);
@@ -167,12 +169,13 @@ public class AccountManager : IAccountManager
         _logger.Information("Updating account {Username}...", username);
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
         const string sql = @"UPDATE users
                               SET email = @e,
                                   firstname = @f,
                                   middlename = @m,
                                   lastname = @l,
-                                  password_hash = CASE WHEN @p IS NULL THEN password_hash ELSE encode(digest(@p, 'sha256'), 'hex') END
+                                  password_hash = CASE WHEN @p IS NULL THEN password_hash ELSE crypt(@p, gen_salt('bf')) END
                               WHERE username = @u AND (@expectedVersion IS NULL OR xmin::text::int = @expectedVersion)
                               RETURNING uuid";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
