@@ -12,9 +12,9 @@ public class Group
     public string Description { get; set; }
     public byte Priority { get; set; }
     
-    public Group(byte id, string name, string description, byte priority)
+    public Group(Guid guid, byte id, string name, string description, byte priority)
     {
-        GUID = ID.Instance.GenerateGUID();
+        GUID = guid;
         Id = id;
         Name = name ?? throw new ArgumentNullException(nameof(name));
         Description = description ?? throw new ArgumentNullException(nameof(description));
