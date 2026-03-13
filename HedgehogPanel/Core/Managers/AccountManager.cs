@@ -216,12 +216,45 @@ public class AccountManager : IAccountManager
         _logger.Warning("Deleting account {Username}...", username);
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
-        const string sql = @"DELETE FROM users WHERE username = @u";
-        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
-        cmd.Parameters.AddWithValue("@u", username);
-        var rows = await cmd.ExecuteNonQueryAsync();
+
+        // First, get the user UUID
+        const string sqlGetUuid = @"SELECT uuid FROM users WHERE username = @u LIMIT 1";
+        await using var cmdGetUuid = new NpgsqlCommand(sqlGetUuid, npgsqlConn);
+        cmdGetUuid.Parameters.AddWithValue("@u", username);
+        var userId = await cmdGetUuid.ExecuteScalarAsync() as Guid?;
+        
+        if (userId == null)
+        {
+            _logger.Warning("No account found for {Username}.", username);
+            return false;
+        }
+        
+        // Delete user group memberships
+        const string sqlDeleteUserGroups = @"DELETE FROM user_groups WHERE user_uuid = @userId";
+        await using var cmdUserGroups = new NpgsqlCommand(sqlDeleteUserGroups, npgsqlConn);
+        cmdUserGroups.Parameters.AddWithValue("@userId", userId.Value);
+        await cmdUserGroups.ExecuteNonQueryAsync();
+
+        // Delete server ownership links (servers remain)
+        const string sqlDeleteServerOwners = @"DELETE FROM server_owners WHERE user_uuid = @userId";
+        await using var cmdServerOwners = new NpgsqlCommand(sqlDeleteServerOwners, npgsqlConn);
+        cmdServerOwners.Parameters.AddWithValue("@userId", userId.Value);
+        await cmdServerOwners.ExecuteNonQueryAsync();
+
+        // Delete service ownership links (services remain)
+        const string sqlDeleteServiceOwners = @"DELETE FROM service_owners WHERE user_uuid = @userId";
+        await using var cmdServiceOwners = new NpgsqlCommand(sqlDeleteServiceOwners, npgsqlConn);
+        cmdServiceOwners.Parameters.AddWithValue("@userId", userId.Value);
+        await cmdServiceOwners.ExecuteNonQueryAsync();
+
+        // Finally, delete the user record
+        const string sqlDeleteUser = @"DELETE FROM users WHERE uuid = @userId";
+        await using var cmdDeleteUser = new NpgsqlCommand(sqlDeleteUser, npgsqlConn);
+        cmdDeleteUser.Parameters.AddWithValue("@userId", userId.Value);
+        var rows = await cmdDeleteUser.ExecuteNonQueryAsync();
+        
         if (rows > 0)
-            _logger.Warning("Deleted account {Username}.", username);
+            _logger.Warning("Deleted account {Username} (UUID: {UserId}).", username, userId.Value);
         else
             _logger.Warning("No account deleted for {Username}.", username);
         return rows > 0;
@@ -269,10 +302,16 @@ public class AccountManager : IAccountManager
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
 
-        const string sqlSelectIds = @"SELECT s.uuid, s.name, s.description, s.created_at, s.xmin::text::int
+        // Include servers owned directly by the user OR by groups that the user belongs to
+        const string sqlSelectIds = @"SELECT DISTINCT s.uuid, s.name, s.description, s.created_at, s.xmin::text::int
                                     FROM servers s
                                     INNER JOIN server_owners so ON s.uuid = so.server_uuid
-                                    WHERE so.user_uuid = @u";
+                                    WHERE so.user_uuid = @u
+                                       OR so.group_uuid IN (
+                                           SELECT ug.group_uuid 
+                                           FROM user_groups ug 
+                                           WHERE ug.user_uuid = @u
+                                       )";
         await using var cmd = new NpgsqlCommand(sqlSelectIds, npgsqlConn);
         cmd.Parameters.AddWithValue("@u", userId);
         await using var reader = await cmd.ExecuteReaderAsync();
