@@ -342,10 +342,11 @@ public class AccountManager : IAccountManager
         byte groupId = 0;
         while (await reader.ReadAsync())
         {
+            var uuid = reader.GetGuid(0);
             var name = reader.GetString(1);
             var description = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
             // Priority is not stored in DB, using default value 0
-            groups.Add(new Group(groupId++, name, description, 0));
+            groups.Add(new Group(uuid, groupId++, name, description, 0));
         }
         return groups.ToArray();
     }
