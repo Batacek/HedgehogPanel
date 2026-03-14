@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using HedgehogPanel.Core.Logging;
 
 namespace HedgehogPanel.Core.Managers;
