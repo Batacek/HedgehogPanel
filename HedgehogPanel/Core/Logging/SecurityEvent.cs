@@ -1,3 +1,5 @@
+using System;
+
 namespace HedgehogPanel.Core.Logging;
 
 public record SecurityEvent(
