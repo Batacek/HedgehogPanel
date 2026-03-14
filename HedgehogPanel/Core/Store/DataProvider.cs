@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using HedgehogPanel.Core.Logging;
 using HedgehogPanel.UserManagment;
 using HedgehogPanel.Servers;
@@ -92,23 +96,67 @@ public class DataProvider : IDataProvider
         return dbServers;
     }
 
-    public async Task WarmupAsync(Guid userId)
+    public Task WarmupAsync(Guid userId)
     {
-        if (!_config.Cache.Enabled || !_config.Cache.Warmup.Enabled) return;
-
-        _logger.Information("Warming up cache for user {UserId} with depth {Depth}", userId, _config.Cache.Warmup.Depth);
-
-        // Depth 1: User
-        
-        if (_config.Cache.Warmup.Depth >= 2)
+        _ = Task.Run(async () =>
         {
-            // Depth 2: Servers
-            await GetServersByUserIdAsync(userId);
-        }
-        
-        if (_config.Cache.Warmup.Depth >= 3)
-        {
-        }
+            try
+            {
+                // Defensive checks and progress indication
+                if (!_config.Cache.Enabled || _config.Cache.Warmup == null || !_config.Cache.Warmup.Enabled) return;
+                var depth = _config.Cache.Warmup.Depth;
+
+                _logger.Information("Warming up cache for user {UserId} with depth {Depth}", userId, depth);
+
+                // Depth 1: User
+                if (depth >= 1)
+                {
+                    try
+                    {
+                        var account = await _accountManager.GetAccountByIdAsync(userId);
+                        if (account != null)
+                        {
+                            _store.Set(account.GUID, account);
+                            _logger.Debug("Depth 1 warmup completed for user {UserId}", userId);
+                        }
+                        else
+                        {
+                            _logger.Warning("Depth 1 warmup: user {UserId} not found.", userId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, "Depth 1 warmup failed for user {UserId}", userId);
+                    }
+                }
+                
+                if (depth >= 2)
+                {
+                    // Depth 2: Servers
+                    try
+                    {
+                        await GetServersByUserIdAsync(userId);
+                        _logger.Debug("Depth 2 warmup completed for user {UserId}", userId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, "Depth 2 warmup failed for user {UserId}", userId);
+                    }
+                }
+                
+                if (depth >= 3)
+                {
+                }
+                
+                _logger.Information("Cache warmup completed for user {UserId}", userId);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Cache warmup top-level failure for user {UserId}", userId);
+            }
+        });
+
+        return Task.CompletedTask;
     }
 
     public void InvalidateAccount(Guid userId)
