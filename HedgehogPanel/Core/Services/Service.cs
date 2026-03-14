@@ -8,26 +8,27 @@ namespace HedgehogPanel.Services;
 public class Service
 {
     private static readonly ILoggerService Logger = HedgehogLogger.ForContext(typeof(Service));
-    public Guid GUID { get; private set; }
+    public Guid Guid { get; private set; }
     public byte Id { get; private set; }
     public string Name { get; private set;  }
     public string Description { get; private set; }
-    public byte type { get; private set; }
-    public byte groupId { get; private set; }
-    public UserManagment.Account OwnerAccount { get; private set; }
-    public UserManagment.Group OwnerGroup { get; private set; }
+    public byte Type { get; private set; }
+    public byte GroupId { get; private set; }
+    public UserManagment.Account[] OwnerAccounts { get; private set; }
+    public UserManagment.Group[] OwnerGroups { get; private set; }
 
-    private protected Service(byte id, string name = null, string description = null, byte type = default,
-        byte groupId = default, Account ownerAccount = null, Group ownerGroup = null)
+    private protected Service(Guid guid, byte id, string name = null, string description = null, byte type = default,
+        byte groupId = default, Account[] ownerAccounts = null, Group[] ownerGroups = null)
     {
-        GUID = ID.Instance.GenerateGUID();
+        Guid = guid;
         Id = id;
-        Name = name ?? $"Service_{GUID}";
+        Name = name ?? $"Service_{Guid}";
         Description = description;
-        this.type = type;
-        this.groupId = groupId;
-        OwnerAccount = ownerAccount ?? throw new ArgumentNullException(nameof(ownerAccount));
-        OwnerGroup = ownerGroup ?? throw new ArgumentNullException(nameof(ownerGroup));
-        Logger.Information("Service created: {Name} (GUID: {Guid}, Id: {Id}, Type: {Type}, GroupId: {GroupId}, Owner: {Owner})", Name, GUID, Id, this.type, this.groupId, OwnerAccount.Username);
+        // TODO: Use an enum to represent service types.
+        Type = type;
+        GroupId = groupId;
+        OwnerAccounts = ownerAccounts ?? Array.Empty<Account>();
+        OwnerGroups = ownerGroups ?? Array.Empty<Group>();
+        Logger.Information("Service created: {Name} (GUID: {Guid}, Id: {Id}, Type: {Type}, GroupId: {GroupId}, OwnerAccounts: {OwnerAccountCount}, OwnerGroups: {OwnerGroupCount})", Name, Guid, Id, this.Type, this.GroupId, OwnerAccounts.Length, OwnerGroups.Length);
     }
 }
