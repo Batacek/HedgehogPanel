@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Security.Claims;
 using System.Text;
 using HedgehogPanel.Core.Managers;
@@ -5,12 +7,16 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 using HedgehogPanel.Core;
 using HedgehogPanel.Core.Security;
 using HedgehogPanel.Core.Logging;
 using HedgehogPanel.Core.Configuration;
 using HedgehogPanel.Core.Store;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 
 namespace HedgehogPanel.API.Auth;
 
@@ -75,7 +81,7 @@ public static class AuthEndpoints
                 var claims = new List<Claim>
                 {
                     new Claim(ClaimTypes.Name, account.Name ?? username),
-                    new Claim(ClaimTypes.NameIdentifier, account.Username),
+                    new Claim(ClaimTypes.NameIdentifier, account.GUID.ToString()),
                     new Claim("username", account.Username),
                     new Claim("guid", account.GUID.ToString())
                 };
