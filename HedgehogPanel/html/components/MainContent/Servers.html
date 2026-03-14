@@ -11,25 +11,79 @@
   function renderItem(srv) {
     const li = document.createElement('li');
     li.className = 'server-item';
-    li.innerHTML = `
-      <div class="server-main">
-        <strong class="server-name">${srv.name}</strong>
-        <span class="server-status ${srv.status}">${srv.status}</span>
-      </div>
-      <div class="server-meta">
-        <span title="Owner">👤 ${srv.owner}</span>
-        <span title="Your role">🔑 ${srv.role}</span>
-      </div>
-      <div class="server-actions">
-        <button type="button" disabled title="Open (stub)">Open</button>
-      </div>
-    `;
+    
+    // Server main section
+    const mainDiv = document.createElement('div');
+    mainDiv.className = 'server-main';
+    
+    const nameStrong = document.createElement('strong');
+    nameStrong.className = 'server-name';
+    nameStrong.textContent = srv.name;
+    
+    const statusSpan = document.createElement('span');
+    statusSpan.className = `server-status ${srv.status}`;
+    statusSpan.textContent = srv.status;
+    
+    mainDiv.appendChild(nameStrong);
+    mainDiv.appendChild(statusSpan);
+    
+    // Server meta section
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'server-meta';
+    
+    const ownerSpan = document.createElement('span');
+    ownerSpan.title = 'Owner';
+    ownerSpan.textContent = `👤 ${srv.owner}`;
+    
+    const roleSpan = document.createElement('span');
+    roleSpan.title = 'Your role';
+    roleSpan.textContent = `🔑 ${srv.role}`;
+    
+    metaDiv.appendChild(ownerSpan);
+    metaDiv.appendChild(roleSpan);
+    
+    // Server actions section
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'server-actions';
+    
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.disabled = true;
+    openBtn.title = 'Open (stub)';
+    openBtn.textContent = 'Open';
+    
+    actionsDiv.appendChild(openBtn);
+    
+    // Assemble
+    li.appendChild(mainDiv);
+    li.appendChild(metaDiv);
+    li.appendChild(actionsDiv);
+    
     return li;
   }
 
+  // Fetch with exponential backoff retry
+  async function fetchWithRetry(url, options, maxRetries = 3, baseDelay = 1000) {
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch(url, options);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res;
+      } catch (err) {
+        lastError = err;
+        if (attempt < maxRetries) {
+          const delay = baseDelay * Math.pow(2, attempt);
+          console.warn(`Fetch attempt ${attempt + 1} failed, retrying in ${delay}ms...`, err);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    throw lastError;
+  }
+
   try {
-    const res = await fetch('/api/servers', { credentials: 'same-origin', cache: 'no-cache' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const res = await fetchWithRetry('/api/servers', { credentials: 'same-origin', cache: 'no-cache' });
     const data = await res.json();
     listEl.innerHTML = '';
     if (Array.isArray(data) && data.length) {
