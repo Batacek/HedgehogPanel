@@ -254,9 +254,13 @@ public static class HedgehogStartupExtensions
         // Content Security Policy (CSP) and other security headers
         app.Use(async (context, next) =>
         {
+            // Generate a unique nonce for this request
+            var nonce = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+            context.Items["csp-nonce"] = nonce;
+            
             context.Response.Headers.Append("Content-Security-Policy", 
                 "default-src 'self'; " +
-                "script-src 'self' 'unsafe-inline'; " +
+                $"script-src 'self' 'nonce-{nonce}'; " +
                 "style-src 'self' 'unsafe-inline'; " +
                 "img-src 'self' data:; " +
                 "font-src 'self'; " +
@@ -417,11 +421,19 @@ public static class HedgehogStartupExtensions
         app.UseAuthorization();
 
         // Endpoints
-        app.MapGet("/", (HttpContext ctx, IWebHostEnvironment env) =>
+        app.MapGet("/", async (HttpContext ctx, IWebHostEnvironment env) =>
         {
             if (ctx.User?.Identity?.IsAuthenticated == true)
             {
-                return Results.File(Path.Combine(env.ContentRootPath, "html", "index.html"), "text/html; charset=utf-8");
+                var indexPath = Path.Combine(env.ContentRootPath, "html", "index.html");
+                var html = await File.ReadAllTextAsync(indexPath);
+                var nonce = ctx.Items["csp-nonce"]?.ToString() ?? "";
+                
+                // Inject nonce into the main script tag and add data attribute for JS access
+                html = html.Replace("<script src=\"/html/js/main.js\"></script>", 
+                    $"<script src=\"/html/js/main.js\" nonce=\"{nonce}\" data-csp-nonce=\"{nonce}\"></script>");
+                
+                return Results.Content(html, "text/html; charset=utf-8");
             }
             return Results.Redirect("/html/login.html");
         }).AllowAnonymous();
@@ -439,6 +451,18 @@ public static class HedgehogStartupExtensions
             return Results.Problem(
                 title: "An error occurred while processing your request.",
                 statusCode: 500);
+        }).AllowAnonymous();
+
+        app.MapGet("/html/login.html", async (HttpContext ctx, IWebHostEnvironment env) =>
+        {
+            var loginPath = Path.Combine(env.ContentRootPath, "html", "login.html");
+            var html = await File.ReadAllTextAsync(loginPath);
+            var nonce = ctx.Items["csp-nonce"]?.ToString() ?? "";
+            
+            // Inject nonce into the inline script tag
+            html = html.Replace("<script>", $"<script nonce=\"{nonce}\">");
+            
+            return Results.Content(html, "text/html; charset=utf-8");
         }).AllowAnonymous();
 
         app.MapApi();
