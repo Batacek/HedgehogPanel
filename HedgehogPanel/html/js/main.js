@@ -67,6 +67,10 @@ async function loadPage(pageKeyOrPath) {
     if (el) {
       el.innerHTML = html;
       const scripts = Array.from(el.querySelectorAll('script'));
+      // Get nonce from the main script tag for CSP compliance
+      const mainScript = document.querySelector('script[data-csp-nonce]');
+      const nonce = mainScript ? mainScript.getAttribute('data-csp-nonce') : null;
+      
       for (const oldScript of scripts) {
         const newScript = document.createElement('script');
         for (const attr of oldScript.attributes) {
@@ -77,6 +81,10 @@ async function loadPage(pageKeyOrPath) {
           newScript.async = false;
         } else {
           newScript.textContent = oldScript.textContent;
+        }
+        // Apply nonce to inline scripts for CSP compliance
+        if (nonce && !oldScript.src) {
+          newScript.setAttribute('nonce', nonce);
         }
         oldScript.parentNode.replaceChild(newScript, oldScript);
       }
@@ -110,9 +118,24 @@ async function boot() {
   ]);
   // Load user info first, then adjust sidebar for role
   await updateTopbarUser();
+  initSidebarInteractions();
   initTopbarInteractions();
   updateSidebarForRole();
   await loadPage('home');
+}
+
+function initSidebarInteractions() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  const buttons = sidebar.querySelectorAll('.nav-button[data-page]');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const page = btn.dataset.page;
+      if (page && typeof window.loadPage === 'function') {
+        window.loadPage(page);
+      }
+    });
+  });
 }
 
 function initTopbarInteractions() {
