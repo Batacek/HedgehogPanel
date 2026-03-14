@@ -1,7 +1,9 @@
+using System;
 using Npgsql;
 using System.Text.Json;
 using HedgehogPanel.Core.Database;
 using System.Data;
+using System.Threading.Tasks;
 
 namespace HedgehogPanel.Core.Logging;
 
