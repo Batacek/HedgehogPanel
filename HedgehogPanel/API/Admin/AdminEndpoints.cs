@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using HedgehogPanel.Core.Managers;
 using Npgsql;
@@ -5,6 +8,9 @@ using HedgehogPanel.Core.Logging;
 using HedgehogPanel.Core.Store;
 using HedgehogPanel.Core.Database;
 using HedgehogPanel.Core.Security;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 
 namespace HedgehogPanel.API.Admin;
 
@@ -69,6 +75,25 @@ public static class AdminEndpoints
             var actorGuidClaim = ctx.User?.FindFirst("guid")?.Value;
             Guid? actorGuid = actorGuidClaim != null ? Guid.Parse(actorGuidClaim) : null;
 
+            // Validate username format/length (align with login rules)
+            if (req.Username.Trim().Length > 64)
+                return Results.BadRequest(new { error = "Username must not exceed 64 characters." });
+            
+            foreach (var ch in req.Username.Trim())
+            {
+                if (!(char.IsLetterOrDigit(ch) || ch == '.' || ch == '_' || ch == '-'))
+                {
+                    return Results.BadRequest(new { error = "Username can only contain letters, digits, dots, underscores, and hyphens." });
+                }
+            }
+            
+            // Validate password strength
+            if (req.Password.Length < 8)
+                return Results.BadRequest(new { error = "Password must be at least 8 characters long." });
+            
+            if (req.Password.Length > 256)
+                return Results.BadRequest(new { error = "Password must not exceed 256 characters." });
+            
             try
             {
                 var acc = await accountManager.CreateAccountAsync(req.Username.Trim(), req.Email.Trim(), req.Password,
