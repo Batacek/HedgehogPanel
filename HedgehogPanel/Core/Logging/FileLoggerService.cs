@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using Serilog;
 
 namespace HedgehogPanel.Core.Logging;
