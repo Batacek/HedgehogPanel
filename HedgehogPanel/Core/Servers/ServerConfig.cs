@@ -1,3 +1,5 @@
+using System;
+
 namespace HedgehogPanel.Servers;
 
 public class ServerConfig
