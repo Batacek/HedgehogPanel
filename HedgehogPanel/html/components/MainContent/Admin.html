@@ -139,10 +139,58 @@
         listEl.innerHTML = '<div class="note">No users found.</div>';
         return;
       }
-      listEl.innerHTML = '<table class="table"><thead><tr><th>Username</th><th>Email</th><th>Name</th><th>Admin</th><th>Group</th><th></th></tr></thead><tbody>'+
-        data.map(u => `<tr><td>${u.username}</td><td>${u.email||''}</td><td>${u.name||''}</td><td>${u.isAdmin? 'Yes':'No'}</td><td>${u.highestPriorityGroup||'-'}</td>`+
-        `<td>${u.username!=='admin'? `<button data-del-user="${u.username}">Delete</button>`:''}</td></tr>`).join('')+
-        '</tbody></table>';
+      const table = document.createElement('table');
+      table.className = 'table';
+      
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['Username', 'Email', 'Name', 'Admin', 'Group', ''].forEach(text => {
+        const th = document.createElement('th');
+        th.textContent = text;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+      
+      const tbody = document.createElement('tbody');
+      data.forEach(u => {
+        const row = document.createElement('tr');
+        
+        const usernameCell = document.createElement('td');
+        usernameCell.textContent = u.username;
+        row.appendChild(usernameCell);
+        
+        const emailCell = document.createElement('td');
+        emailCell.textContent = u.email || '';
+        row.appendChild(emailCell);
+        
+        const nameCell = document.createElement('td');
+        nameCell.textContent = u.name || '';
+        row.appendChild(nameCell);
+        
+        const adminCell = document.createElement('td');
+        adminCell.textContent = u.isAdmin ? 'Yes' : 'No';
+        row.appendChild(adminCell);
+        
+        const groupCell = document.createElement('td');
+        groupCell.textContent = u.highestPriorityGroup || '-';
+        row.appendChild(groupCell);
+        
+        const actionCell = document.createElement('td');
+        if (u.username !== 'admin') {
+          const delBtn = document.createElement('button');
+          delBtn.textContent = 'Delete';
+          delBtn.dataset.delUser = u.username;
+          actionCell.appendChild(delBtn);
+        }
+        row.appendChild(actionCell);
+        
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      
+      listEl.innerHTML = '';
+      listEl.appendChild(table);
       listEl.querySelectorAll('[data-del-user]').forEach(btn=>{
         btn.addEventListener('click', async ()=>{
           if (!confirm('Delete user '+btn.dataset.delUser+'?')) return;
@@ -191,10 +239,52 @@
         listEl.innerHTML = '<div class="note">No servers found.</div>';
         return;
       }
-      listEl.innerHTML = '<table class="table"><thead><tr><th>Name</th><th>Description</th><th>Owner</th><th>Created</th><th></th></tr></thead><tbody>'+
-        data.map(s => `<tr><td>${s.name}</td><td>${s.description||''}</td><td>${s.ownerUsername||''}</td><td>${new Date(s.createdAt).toLocaleString()}</td>`+
-        `<td><button data-del-server="${s.id}">Delete</button></td></tr>`).join('')+
-        '</tbody></table>';
+      const table = document.createElement('table');
+      table.className = 'table';
+      
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['Name', 'Description', 'Owner', 'Created', ''].forEach(text => {
+        const th = document.createElement('th');
+        th.textContent = text;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+      
+      const tbody = document.createElement('tbody');
+      data.forEach(s => {
+        const row = document.createElement('tr');
+        
+        const nameCell = document.createElement('td');
+        nameCell.textContent = s.name;
+        row.appendChild(nameCell);
+        
+        const descCell = document.createElement('td');
+        descCell.textContent = s.description || '';
+        row.appendChild(descCell);
+        
+        const ownerCell = document.createElement('td');
+        ownerCell.textContent = s.ownerUsername || '';
+        row.appendChild(ownerCell);
+        
+        const createdCell = document.createElement('td');
+        createdCell.textContent = new Date(s.createdAt).toLocaleString();
+        row.appendChild(createdCell);
+        
+        const actionCell = document.createElement('td');
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Delete';
+        delBtn.dataset.delServer = s.id;
+        actionCell.appendChild(delBtn);
+        row.appendChild(actionCell);
+        
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      
+      listEl.innerHTML = '';
+      listEl.appendChild(table);
       listEl.querySelectorAll('[data-del-server]').forEach(btn=>{
         btn.addEventListener('click', async ()=>{
           if (!confirm('Delete server?')) return;
