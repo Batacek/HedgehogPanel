@@ -1,6 +1,11 @@
-using HedgehogPanel.Core.Managers;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using HedgehogPanel.Core.Logging;
 using HedgehogPanel.Core.Store;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 
 namespace HedgehogPanel.API.Servers;
 
@@ -26,12 +31,14 @@ public static class ServerEndpoints
                 var serverList = new List<object>();
                 foreach (var server in servers)
                 {
-                    var isOwner = server.OwnerAccount?.GUID == userGuid;
+                    var isOwner = server.OwnerAccounts.Any(a => a.GUID == userGuid);
+                    var firstOwnerAccount = server.OwnerAccounts.FirstOrDefault();
+                    var ownerName = firstOwnerAccount?.Name ?? firstOwnerAccount?.Username ?? "Unknown";
                     serverList.Add(new
                     {
                         id = server.GUID.ToString(),
                         name = server.Name,
-                        owner = server.OwnerAccount?.Name ?? server.OwnerAccount?.Username ?? "Unknown",
+                        owner = ownerName,
                         role = isOwner ? "Owner" : "Member",
                         status = "Unknown" // status not implemented yet
                     });
