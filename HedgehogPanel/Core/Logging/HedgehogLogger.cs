@@ -1,3 +1,6 @@
+using System;
+using System.Threading.Tasks;
+
 namespace HedgehogPanel.Core.Logging;
 
 public class HedgehogLogger : ILoggerService
