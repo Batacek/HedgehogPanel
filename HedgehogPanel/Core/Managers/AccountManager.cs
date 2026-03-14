@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Npgsql;
 using HedgehogPanel.Core.Logging;
 using HedgehogPanel.Core.Database;
@@ -315,14 +319,23 @@ public class AccountManager : IAccountManager
         await using var cmd = new NpgsqlCommand(sqlSelectIds, npgsqlConn);
         cmd.Parameters.AddWithValue("@u", userId);
         await using var reader = await cmd.ExecuteReaderAsync();
-        var list = new List<Server>();
+        var serverDataList = new List<(Guid uuid, string name, DateTime createdAt, uint xmin)>();
         while (await reader.ReadAsync())
         {
             var serverUuid = reader.GetGuid(0);
             var name = reader.GetString(1);
             var createdAt = reader.IsDBNull(3) ? DateTime.UtcNow : reader.GetDateTime(3);
             var xmin = (uint)reader.GetInt32(4);
-            var server = new Server(serverUuid, 0, name, new ServerConfig(), Array.Empty<HedgehogPanel.Services.Service>(), null, null, createdAt, xmin);
+            serverDataList.Add((serverUuid, name, createdAt, xmin));
+        }
+        await reader.CloseAsync();
+
+        var list = new List<Server>();
+        foreach (var serverData in serverDataList)
+        {
+            var ownerAccounts = await LoadServerOwnerAccountsAsync(serverData.uuid, npgsqlConn);
+            var ownerGroups = await LoadServerOwnerGroupsAsync(serverData.uuid, npgsqlConn);
+            var server = new Server(serverData.uuid, 0, serverData.name, new ServerConfig(), Array.Empty<HedgehogPanel.Services.Service>(), ownerAccounts, ownerGroups, serverData.createdAt, serverData.xmin);
             list.Add(server);
         }
         _logger.Information("Fetched {Count} servers for user {UserId}.", list.Count, userId);
@@ -346,6 +359,61 @@ public class AccountManager : IAccountManager
             var name = reader.GetString(1);
             var description = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
             // Priority is not stored in DB, using default value 0
+            groups.Add(new Group(uuid, groupId++, name, description, 0));
+        }
+        return groups.ToArray();
+    }
+
+    private async Task<Account[]> LoadServerOwnerAccountsAsync(Guid serverGuid, NpgsqlConnection connection)
+    {
+        const string sql = @"SELECT u.uuid, u.username, u.email, u.firstname, u.middlename, u.lastname
+                             FROM users u
+                             INNER JOIN server_owners so ON u.uuid = so.user_uuid
+                             WHERE so.server_uuid = @serverGuid AND so.user_uuid IS NOT NULL";
+        await using var cmd = new NpgsqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@serverGuid", serverGuid);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        var userDataList = new List<(Guid uuid, string username, string email, string firstname, string middlename, string lastname)>();
+        while (await reader.ReadAsync())
+        {
+            var uuid = reader.GetGuid(0);
+            var username = reader.GetString(1);
+            var email = reader.GetString(2);
+            var firstname = reader.IsDBNull(3) ? string.Empty : reader.GetString(3);
+            var middlename = reader.IsDBNull(4) ? string.Empty : reader.GetString(4);
+            var lastname = reader.IsDBNull(5) ? string.Empty : reader.GetString(5);
+            userDataList.Add((uuid, username, email, firstname, middlename, lastname));
+        }
+        await reader.CloseAsync();
+
+        var accounts = new List<Account>();
+        byte accountId = 0;
+        foreach (var userData in userDataList)
+        {
+            var groups = await LoadUserGroupsAsync(userData.uuid, connection);
+            var account = new Account(userData.uuid, accountId++, userData.username, userData.email, userData.firstname, userData.middlename, userData.lastname, groups);
+            account.Name = string.Join(" ", new[] { userData.firstname, userData.middlename, userData.lastname }.Where(s => !string.IsNullOrWhiteSpace(s)));
+            accounts.Add(account);
+        }
+        return accounts.ToArray();
+    }
+
+    private async Task<Group[]> LoadServerOwnerGroupsAsync(Guid serverGuid, NpgsqlConnection connection)
+    {
+        const string sql = @"SELECT g.uuid, g.name, g.description
+                             FROM groups g
+                             INNER JOIN server_owners so ON g.uuid = so.group_uuid
+                             WHERE so.server_uuid = @serverGuid AND so.group_uuid IS NOT NULL";
+        await using var cmd = new NpgsqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@serverGuid", serverGuid);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        var groups = new List<Group>();
+        byte groupId = 0;
+        while (await reader.ReadAsync())
+        {
+            var uuid = reader.GetGuid(0);
+            var name = reader.GetString(1);
+            var description = reader.IsDBNull(2) ? string.Empty : reader.GetString(2);
             groups.Add(new Group(uuid, groupId++, name, description, 0));
         }
         return groups.ToArray();
