@@ -4,7 +4,7 @@ using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using HedgehogPanel.Application.Repositories;
-using HedgehogPanel.Core.Database;
+using HedgehogPanel.Application.Persistence;
 using HedgehogPanel.Domain.Entities;
 using Npgsql;
 
