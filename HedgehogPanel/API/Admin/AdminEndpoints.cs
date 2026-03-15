@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using HedgehogPanel.Application.Services;
-using HedgehogPanel.Core.Managers;
+using HedgehogPanel.Application.Persistence;
+using HedgehogPanel.Application.Contracts.Logging;
+using HedgehogPanel.Infrastructure.Logging;
+using HedgehogPanel.Infrastructure.Persistence.Store;
+using HedgehogPanel.Infrastructure.Security;
 using Npgsql;
-using HedgehogPanel.Core.Logging;
-using HedgehogPanel.Core.Store;
-using HedgehogPanel.Core.Database;
-using HedgehogPanel.Core.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -66,7 +66,7 @@ public static class AdminEndpoints
             }));
         }).RequireAuthorization();
 
-        group.MapPost("/users", async (HttpContext ctx, CreateUserRequest req, IAccountManager accountManager) =>
+        group.MapPost("/users", async (HttpContext ctx, CreateUserRequest req, IAccountService accountService) =>
         {
             if (req is null || string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrEmpty(req.Password))
                 return Results.BadRequest(new { error = "Missing required fields." });
@@ -97,14 +97,14 @@ public static class AdminEndpoints
             
             try
             {
-                var acc = await accountManager.CreateAccountAsync(req.Username.Trim(), req.Email.Trim(), req.Password,
+                var acc = await accountService.CreateAccountAsync(req.Username.Trim(), req.Email.Trim(), req.Password,
                     string.IsNullOrWhiteSpace(req.FirstName) ? null : req.FirstName?.Trim(),
                     string.IsNullOrWhiteSpace(req.MiddleName) ? null : req.MiddleName?.Trim(),
                     string.IsNullOrWhiteSpace(req.LastName) ? null : req.LastName?.Trim());
 
                 await Logger.LogSecurityEventAsync(new SecurityEvent(
                     "User.Created",
-                    acc.GUID,
+                    acc.Guid,
                     actorGuid,
                     ip,
                     userAgent,
@@ -114,10 +114,10 @@ public static class AdminEndpoints
 
                 return Results.Ok(new
                 {
-                    guid = acc.GUID,
+                    guid = acc.Guid,
                     username = acc.Username,
                     email = acc.Email,
-                    name = acc.Name,
+                    name = acc.FullName,
                     isAdmin = acc.IsAdmin
                 });
             }
@@ -133,7 +133,7 @@ public static class AdminEndpoints
             }
         }).RequireAuthorization();
 
-        group.MapDelete("/users/{username}", async (HttpContext ctx, string username, IAccountManager accountManager, IDataProvider dataProvider) =>
+        group.MapDelete("/users/{username}", async (HttpContext ctx, string username, IAccountService accountService, IDataProvider dataProvider) =>
         {
             if (string.IsNullOrWhiteSpace(username)) return Results.BadRequest(new { error = "Username required" });
             if (string.Equals(username, "admin", StringComparison.OrdinalIgnoreCase))
@@ -145,10 +145,10 @@ public static class AdminEndpoints
             Guid? actorGuid = actorGuidClaim != null ? Guid.Parse(actorGuidClaim) : null;
 
             // Find user first to get GUID
-            var acc = await accountManager.GetAccountByUsernameAsync(username.Trim());
-            Guid? targetGuid = acc?.GUID;
+            var acc = await accountService.GetAccountByUsernameAsync(username.Trim());
+            Guid? targetGuid = acc?.Guid;
 
-            var ok = await accountManager.DeleteAccountAsync(username.Trim());
+            var ok = await accountService.DeleteAccountAsync(username.Trim());
 
             if (ok)
             {
@@ -193,26 +193,42 @@ public static class AdminEndpoints
         }).RequireAuthorization();
 
         // Servers
-        group.MapGet("/servers", async (IServerManager serverManager) =>
+        group.MapGet("/servers", async (IServerService serverService) =>
         {
-            var servers = await serverManager.ListServersAsync(500, 0);
-            return Results.Ok(servers);
+            var servers = await serverService.ListServersAsync(500, 0);
+            var result = new List<object>();
+            foreach (var s in servers)
+            {
+                var owner = await serverService.GetServerOwnerUsernameAsync(s.Guid);
+                result.Add(new {
+                    id = s.Guid,
+                    name = s.Name,
+                    description = s.Description,
+                    createdAt = s.CreatedAt,
+                    ownerUsername = owner ?? "Unknown"
+                });
+            }
+            return Results.Ok(result);
         }).RequireAuthorization();
 
-        group.MapPost("/servers", async (CreateServerRequest req, IAccountManager accountManager, IServerManager serverManager) =>
+        group.MapPost("/servers", async (CreateServerRequest req, IAccountService accountService, IServerService serverService) =>
         {
             if (req is null || string.IsNullOrWhiteSpace(req.Name))
                 return Results.BadRequest(new { error = "Name is required." });
             Guid? ownerUserGuid = null;
             if (!string.IsNullOrWhiteSpace(req.OwnerUsername))
             {
-                var acc = await accountManager.GetAccountByUsernameAsync(req.OwnerUsername.Trim());
+                var acc = await accountService.GetAccountByUsernameAsync(req.OwnerUsername.Trim());
                 if (acc is null) return Results.BadRequest(new { error = "Owner username not found." });
-                ownerUserGuid = acc.GUID;
+                ownerUserGuid = acc.Guid;
             }
             try
             {
-                var server = await serverManager.CreateServerAsync(req.Name.Trim(), string.IsNullOrWhiteSpace(req.Description) ? null : req.Description?.Trim(), ownerUserGuid);
+                var server = await serverService.CreateServerAsync(req.Name.Trim(), "", 22);
+                if (ownerUserGuid.HasValue)
+                {
+                    await serverService.AssignServerToUserAsync(server.Guid, ownerUserGuid.Value);
+                }
                 return Results.Ok(server);
             }
             catch (Exception ex)
@@ -222,10 +238,10 @@ public static class AdminEndpoints
             }
         }).RequireAuthorization();
 
-        group.MapDelete("/servers/{id}", async (string id, IServerManager serverManager, IDataProvider dataProvider) =>
+        group.MapDelete("/servers/{id}", async (string id, IServerService serverService, IDataProvider dataProvider) =>
         {
             if (!Guid.TryParse(id, out var guid)) return Results.BadRequest(new { error = "Invalid server id." });
-            var ok = await serverManager.DeleteServerAsync(guid);
+            var ok = await serverService.DeleteServerAsync(guid);
             if (ok) dataProvider.InvalidateServer(guid);
             return ok ? Results.Ok(new { success = true }) : Results.NotFound(new { error = "Server not found." });
         }).RequireAuthorization();;
