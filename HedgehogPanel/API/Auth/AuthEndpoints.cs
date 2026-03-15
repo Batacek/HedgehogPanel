@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Text;
-using HedgehogPanel.Core.Managers;
+using HedgehogPanel.Application.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
@@ -29,7 +29,7 @@ public static class AuthEndpoints
         Logger.Information("Mapping Auth endpoints...");
         
         // Login API
-        endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req, IAccountLockoutService lockoutSvc, IAccountManager accountManager, IDataProvider dataProvider, HedgehogConfig config) =>
+        endpoints.MapPost("/api/login", async (HttpContext ctx, LoginRequest req, IAccountLockoutService lockoutSvc, IAccountService accountService, IDataProvider dataProvider, HedgehogConfig config) =>
         {
             if (req is null || string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
             {
@@ -73,17 +73,23 @@ public static class AuthEndpoints
 
             try
             {
-                var account = await accountManager.AuthenticateAsync(username, password);
+                var account = await accountService.AuthenticateAsync(username, password);
+                if (account == null)
+                {
+                    await lockoutSvc.RecordFailedAttemptAsync(username, ip);
+                    Logger.Warning("Authentication failed for user {Username} from {IP}.", username, ip);
+                    throw new UnauthorizedAccessException("Invalid username or password.");
+                }
                 
                 // Warmup cache - fire-and-forget (no await, no wrapper)
-                _ = dataProvider.WarmupAsync(account.GUID);
+                _ = dataProvider.WarmupAsync(account.Guid);
 
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name, account.Name ?? username),
-                    new Claim(ClaimTypes.NameIdentifier, account.GUID.ToString()),
+                    new Claim(ClaimTypes.Name, account.FullName ?? username),
+                    new Claim(ClaimTypes.NameIdentifier, account.Guid.ToString()),
                     new Claim("username", account.Username),
-                    new Claim("guid", account.GUID.ToString())
+                    new Claim("guid", account.Guid.ToString())
                 };
                 
                 // Add role claims based on user groups
@@ -108,7 +114,7 @@ public static class AuthEndpoints
 
                 await Logger.LogSecurityEventAsync(new SecurityEvent(
                     "User.Login.Success",
-                    account.GUID,
+                    account.Guid,
                     null,
                     ip,
                     ctx.Request.Headers["User-Agent"],
