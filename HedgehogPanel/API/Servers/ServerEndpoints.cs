@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using HedgehogPanel.Core.Logging;
-using HedgehogPanel.Core.Store;
+using HedgehogPanel.Application.Services;
+using HedgehogPanel.Application.Contracts.Logging;
+using HedgehogPanel.Infrastructure.Logging;
+using HedgehogPanel.Infrastructure.Persistence.Store;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -15,7 +17,7 @@ public static class ServerEndpoints
     public static IEndpointRouteBuilder MapServerEndpoints(this IEndpointRouteBuilder endpoints)
     {
         Logger.Information("Mapping Server endpoints...");
-        endpoints.MapGet("/api/servers", async (HttpContext ctx, IDataProvider dataProvider) =>
+        endpoints.MapGet("/api/servers", async (HttpContext ctx, IServerService serverService) =>
         {
             var userGuidStr = ctx.User?.FindFirst("guid")?.Value;
             if (string.IsNullOrEmpty(userGuidStr) || !Guid.TryParse(userGuidStr, out var userGuid))
@@ -24,23 +26,38 @@ public static class ServerEndpoints
                 return Results.Unauthorized();
             }
 
+            var isAdmin = ctx.User?.IsInRole("Admin") == true;
+
             try
             {
-                Logger.Debug("Fetching servers for user {UserGuid}...", userGuid);
-                var servers = await dataProvider.GetServersByUserIdAsync(userGuid);
+                Logger.Debug("Fetching servers for user {UserGuid} (Admin={IsAdmin})...", userGuid, isAdmin);
+                
+                var userServers = await serverService.ListServersByOwnerAsync(userGuid);
+                var servers = userServers.ToList();
+
+                if (isAdmin)
+                {
+                    var unownedServers = await serverService.ListUnownedServersAsync();
+                    foreach (var s in unownedServers)
+                    {
+                        if (servers.All(existing => existing.Guid != s.Guid))
+                        {
+                            servers.Add(s);
+                        }
+                    }
+                }
+                
                 var serverList = new List<object>();
                 foreach (var server in servers)
                 {
-                    var isOwner = server.OwnerAccounts.Any(a => a.GUID == userGuid);
-                    var firstOwnerAccount = server.OwnerAccounts.FirstOrDefault();
-                    var ownerName = firstOwnerAccount?.Name ?? firstOwnerAccount?.Username ?? "Unknown";
+                    var owner = await serverService.GetServerOwnerUsernameAsync(server.Guid);
                     serverList.Add(new
                     {
-                        id = server.GUID.ToString(),
+                        id = server.Guid.ToString(),
                         name = server.Name,
-                        owner = ownerName,
-                        role = isOwner ? "Owner" : "Member",
-                        status = "Unknown" // status not implemented yet
+                        owner = owner ?? "Unknown",
+                        role = owner != null ? "Owner" : "Member",
+                        status = server.Status.ToString()
                     });
                 }
                 Logger.Information("Returning {Count} servers for user {UserGuid}.", serverList.Count, userGuid);
