@@ -34,4 +34,23 @@ public interface IServerService
     /// <param name="id">The globally unique identifier of the server to delete.</param>
     /// <returns>A task representing the asynchronous operation. The task result is a boolean indicating whether the delete operation succeeded.</returns>
     Task<bool> DeleteServerAsync(Guid id);
+    /// <summary>
+    /// Retrieves a list of servers owned by a specific user.
+    /// </summary>
+    Task<IReadOnlyList<Server>> ListServersByOwnerAsync(Guid userGuid, int limit = 100, int offset = 0);
+
+    /// <summary>
+    /// Retrieves a list of servers that have no owner.
+    /// </summary>
+    Task<IReadOnlyList<Server>> ListUnownedServersAsync(int limit = 100, int offset = 0);
+
+    /// <summary>
+    /// Retrieves the username of the owner of a server.
+    /// </summary>
+    Task<string?> GetServerOwnerUsernameAsync(Guid serverGuid);
+
+    /// <summary>
+    /// Assigns a server to a specific user.
+    /// </summary>
+    Task<bool> AssignServerToUserAsync(Guid serverGuid, Guid userGuid);
 }
