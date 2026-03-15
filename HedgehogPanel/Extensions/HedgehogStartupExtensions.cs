@@ -9,12 +9,14 @@ using Serilog;
 using HedgehogPanel.API;
 using HedgehogPanel.Application.Repositories;
 using HedgehogPanel.Application.Services;
+using HedgehogPanel.Application.Persistence;
+using HedgehogPanel.Application.Contracts.Logging;
 using HedgehogPanel.Infrastructure.Persistence.PostgreSQL.Repositories;
-using HedgehogPanel.Core.Logging;
-using HedgehogPanel.Core.Database;
-using HedgehogPanel.Core.Managers;
-using HedgehogPanel.Core.Configuration;
-using HedgehogPanel.Core.Store;
+using HedgehogPanel.Infrastructure.Persistence.PostgreSQL;
+using HedgehogPanel.Infrastructure.Logging;
+using HedgehogPanel.Infrastructure.Configuration;
+using HedgehogPanel.Infrastructure.Persistence.Store;
+using HedgehogPanel.Infrastructure.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -109,12 +111,7 @@ public static class HedgehogStartupExtensions
         builder.Services.AddSingleton<IAccountService, AccountService>();
         builder.Services.AddSingleton<IServerService, ServerService>();
 
-        builder.Services.AddSingleton<IAccountManager, AccountManager>(sp => 
-            new AccountManager(HedgehogLogger.ForContext<AccountManager>(), sp.GetRequiredService<IDbConnectionFactory>()));
-        builder.Services.AddSingleton<IServerManager, ServerManager>(sp => 
-            new ServerManager(HedgehogLogger.ForContext<ServerManager>(), sp.GetRequiredService<IDbConnectionFactory>()));
-        
-        logger.Information("Database services and managers registered.");
+        logger.Information("Database services and repositories registered.");
 
         // Rate Limiting configuration
         builder.Services.AddRateLimiter(options =>
@@ -172,7 +169,7 @@ public static class HedgehogStartupExtensions
         });
 
         builder.Services.AddMemoryCache();
-        builder.Services.AddScoped<HedgehogPanel.Core.Security.IAccountLockoutService, HedgehogPanel.Core.Security.AccountLockoutService>();
+        builder.Services.AddScoped<IAccountLockoutService, AccountLockoutService>();
 
         logger.Information("Setting up authentication and authorization...");
         var jwtSecret = config.Auth.Jwt.Secret;
