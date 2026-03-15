@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using HedgehogPanel.Application.Services;
 using HedgehogPanel.Core.Managers;
 using Npgsql;
 using HedgehogPanel.Core.Logging;
@@ -25,9 +26,9 @@ public static class AdminEndpoints
         var group = endpoints.MapGroup("/api/admin").RequireAuthorization(policy => policy.RequireRole("Admin"));
 
         // Users
-        group.MapGet("/users", async (IAccountManager accountManager, IDbConnectionFactory dbFactory) =>
+        group.MapGet("/users", async (IAccountService accountService, IDbConnectionFactory dbFactory) =>
         {
-            var users = await accountManager.ListAccountsAsync(500, 0);
+            var users = await accountService.ListAccountsAsync(500, 0);
             
             // Fetch highest priority group for each user
             var userGroupsDict = new Dictionary<Guid, string?>();
@@ -52,16 +53,16 @@ public static class AdminEndpoints
             
             return Results.Ok(users.Select(u => new
             {
-                guid = u.GUID,
+                guid = u.Guid,
                 username = u.Username,
                 email = u.Email,
-                name = u.Name,
+                name = u.FullName,
                 firstName = u.FirstName,
                 middleName = u.MiddleName,
                 lastName = u.LastName,
                 isAdmin = u.IsAdmin,
                 rowVersion = u.RowVersion,
-                highestPriorityGroup = userGroupsDict.TryGetValue(u.GUID, out var grp) ? grp : null
+                highestPriorityGroup = userGroupsDict.TryGetValue(u.Guid, out var grp) ? grp : null
             }));
         }).RequireAuthorization();
 
