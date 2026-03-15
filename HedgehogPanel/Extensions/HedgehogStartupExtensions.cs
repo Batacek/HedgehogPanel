@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
 using Serilog;
 using HedgehogPanel.API;
+using HedgehogPanel.Application.Repositories;
+using HedgehogPanel.Application.Services;
+using HedgehogPanel.Infrastructure.Persistence.PostgreSQL.Repositories;
 using HedgehogPanel.Core.Logging;
 using HedgehogPanel.Core.Database;
 using HedgehogPanel.Core.Managers;
@@ -47,8 +50,8 @@ public static class HedgehogStartupExtensions
         var logger = HedgehogLogger.ForContext<WebApplicationBuilder>();
         logger.Information("Starting Hedgehog Panel Web Application...");
         logger.Information("Environment: {Environment}", Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"));
-        logger.Information("Content Root Path: {ContentRootPath}", AppContext.BaseDirectory);
-        logger.Information("Web Root Path: {WebRootPath}", Path.Combine(AppContext.BaseDirectory, "html"));
+        logger.Information("Content Root Path: {ContentRootPath}", builder.Environment.ContentRootPath);
+        logger.Information("Web Root Path: {WebRootPath}", Path.Combine(builder.Environment.ContentRootPath, "Web", "wwwroot"));
 
         builder.WebHost.ConfigureKestrel(options =>
         {
@@ -99,6 +102,13 @@ public static class HedgehogStartupExtensions
 
         builder.Services.AddSingleton<IInMemoryStore, InMemoryStore>();
         builder.Services.AddSingleton<IDataProvider, DataProvider>();
+        
+        // Logical layers registration
+        builder.Services.AddSingleton<IAccountRepository, AccountRepository>();
+        builder.Services.AddSingleton<IServerRepository, ServerRepository>();
+        builder.Services.AddSingleton<IAccountService, AccountService>();
+        builder.Services.AddSingleton<IServerService, ServerService>();
+
         builder.Services.AddSingleton<IAccountManager, AccountManager>(sp => 
             new AccountManager(HedgehogLogger.ForContext<AccountManager>(), sp.GetRequiredService<IDbConnectionFactory>()));
         builder.Services.AddSingleton<IServerManager, ServerManager>(sp => 
@@ -414,7 +424,7 @@ public static class HedgehogStartupExtensions
 
         app.UseStaticFiles(new StaticFileOptions
         {
-            FileProvider = new PhysicalFileProvider(Path.Combine(app.Environment.ContentRootPath, "html")),
+            FileProvider = new PhysicalFileProvider(Path.Combine(app.Environment.ContentRootPath, "Web", "wwwroot")),
             RequestPath = "/html"
         });
 
@@ -425,7 +435,7 @@ public static class HedgehogStartupExtensions
         {
             if (ctx.User?.Identity?.IsAuthenticated == true)
             {
-                var indexPath = Path.Combine(env.ContentRootPath, "html", "index.html");
+                var indexPath = Path.Combine(env.ContentRootPath, "Web", "wwwroot", "index.html");
                 var html = await File.ReadAllTextAsync(indexPath);
                 var nonce = ctx.Items["csp-nonce"]?.ToString() ?? "";
                 
@@ -455,7 +465,7 @@ public static class HedgehogStartupExtensions
 
         app.MapGet("/html/login.html", async (HttpContext ctx, IWebHostEnvironment env) =>
         {
-            var loginPath = Path.Combine(env.ContentRootPath, "html", "login.html");
+            var loginPath = Path.Combine(env.ContentRootPath, "Web", "wwwroot", "login.html");
             var html = await File.ReadAllTextAsync(loginPath);
             var nonce = ctx.Items["csp-nonce"]?.ToString() ?? "";
             
