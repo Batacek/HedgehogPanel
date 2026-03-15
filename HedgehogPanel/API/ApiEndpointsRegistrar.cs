@@ -1,7 +1,8 @@
 using HedgehogPanel.API.Auth;
 using HedgehogPanel.API.Servers;
 using HedgehogPanel.API.Admin;
-using HedgehogPanel.Core.Logging;
+using HedgehogPanel.Application.Contracts.Logging;
+using HedgehogPanel.Infrastructure.Logging;
 using Microsoft.AspNetCore.Routing;
 
 namespace HedgehogPanel.API;
