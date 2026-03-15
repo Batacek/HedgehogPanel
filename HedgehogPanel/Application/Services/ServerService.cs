@@ -42,4 +42,24 @@ public class ServerService : IServerService
     {
         return await _serverRepository.DeleteAsync(id);
     }
+
+    public async Task<IReadOnlyList<Server>> ListServersByOwnerAsync(Guid userGuid, int limit = 100, int offset = 0)
+    {
+        return await _serverRepository.ListByOwnerAsync(userGuid, limit, offset);
+    }
+
+    public async Task<IReadOnlyList<Server>> ListUnownedServersAsync(int limit = 100, int offset = 0)
+    {
+        return await _serverRepository.ListUnownedAsync(limit, offset);
+    }
+
+    public async Task<string?> GetServerOwnerUsernameAsync(Guid serverGuid)
+    {
+        return await _serverRepository.GetOwnerUsernameAsync(serverGuid);
+    }
+
+    public async Task<bool> AssignServerToUserAsync(Guid serverGuid, Guid userGuid)
+    {
+        return await _serverRepository.AssignToUserAsync(serverGuid, userGuid);
+    }
 }
