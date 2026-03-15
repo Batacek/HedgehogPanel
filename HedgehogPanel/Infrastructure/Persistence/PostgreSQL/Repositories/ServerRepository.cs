@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using HedgehogPanel.Application.Repositories;
-using HedgehogPanel.Core.Database;
+using HedgehogPanel.Application.Persistence;
 using HedgehogPanel.Domain.Entities;
 using Npgsql;
 
@@ -86,6 +86,94 @@ public class ServerRepository : IServerRepository
         const string sql = "DELETE FROM servers WHERE uuid = @id";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@id", guid);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    public async Task<IReadOnlyList<Server>> ListByOwnerAsync(Guid userGuid, int limit, int offset)
+    {
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
+        const string sql = @"
+            SELECT s.uuid, s.name, s.description, s.created_at 
+            FROM servers s
+            JOIN server_owners so ON s.uuid = so.server_uuid
+            WHERE so.user_uuid = @userGuid
+            ORDER BY s.name 
+            LIMIT @limit OFFSET @offset";
+            
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
+        cmd.Parameters.AddWithValue("@userGuid", userGuid);
+        cmd.Parameters.AddWithValue("@limit", limit);
+        cmd.Parameters.AddWithValue("@offset", offset);
+        
+        var list = new List<Server>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            list.Add(MapServer(reader));
+        }
+        return list;
+    }
+
+    public async Task<IReadOnlyList<Server>> ListUnownedAsync(int limit, int offset)
+    {
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
+        const string sql = @"
+            SELECT s.uuid, s.name, s.description, s.created_at 
+            FROM servers s
+            LEFT JOIN server_owners so ON s.uuid = so.server_uuid
+            WHERE so.server_uuid IS NULL
+            ORDER BY s.name 
+            LIMIT @limit OFFSET @offset";
+            
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
+        cmd.Parameters.AddWithValue("@limit", limit);
+        cmd.Parameters.AddWithValue("@offset", offset);
+        
+        var list = new List<Server>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            list.Add(MapServer(reader));
+        }
+        return list;
+    }
+
+    public async Task<string?> GetOwnerUsernameAsync(Guid serverGuid)
+    {
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
+        const string sql = @"
+            SELECT u.username
+            FROM users u
+            JOIN server_owners so ON u.uuid = so.user_uuid
+            WHERE so.server_uuid = @serverGuid
+            LIMIT 1";
+            
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
+        cmd.Parameters.AddWithValue("@serverGuid", serverGuid);
+        
+        return (string?)await cmd.ExecuteScalarAsync();
+    }
+
+    public async Task<bool> AssignToUserAsync(Guid serverGuid, Guid userGuid)
+    {
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
+        const string sql = @"
+            INSERT INTO server_owners (server_uuid, user_uuid)
+            VALUES (@serverGuid, @userGuid)
+            ON CONFLICT (server_uuid, user_uuid) WHERE user_uuid IS NOT NULL DO NOTHING";
+            
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
+        cmd.Parameters.AddWithValue("@serverGuid", serverGuid);
+        cmd.Parameters.AddWithValue("@userGuid", userGuid);
+        
         return await cmd.ExecuteNonQueryAsync() > 0;
     }
 
