@@ -7,29 +7,48 @@ namespace HedgehogPanel.Application.Repositories;
 
 public interface IServerRepository
 {
+    /// <summary>
     /// Retrieves a server by its globally unique identifier (GUID).
-    /// <param name="guid">The globally unique identifier of the server to retrieve.</param>
-    /// <returns>A task representing the asynchronous operation. The task result contains the server associated with the specified GUID, or null if no server is found.</returns>
+    /// </summary>
     Task<Server?> GetByGuidAsync(Guid guid);
 
+    /// <summary>
     /// Retrieves a list of servers with pagination support.
-    /// <param name="limit">The maximum number of servers to retrieve.</param>
-    /// <param name="offset">The number of servers to skip before starting to collect the result set.</param>
-    /// <returns>A task representing the asynchronous operation. The task result contains a read-only list of servers within the specified range.</returns>
+    /// </summary>
     Task<IReadOnlyList<Server>> ListAsync(int limit, int offset);
 
+    /// <summary>
     /// Creates a new server in the repository.
-    /// <param name="server">The server entity to create in the repository.</param>
-    /// <returns>A task representing the asynchronous operation. The task result indicates whether the server was successfully created.</returns>
+    /// </summary>
     Task<bool> CreateAsync(Server server);
 
+    /// <summary>
     /// Updates an existing server's details in the repository.
-    /// <param name="server">The server entity containing the updated information to apply.</param>
-    /// <returns>A task representing the asynchronous operation. The task result indicates whether the update was successful.</returns>
+    /// </summary>
     Task<bool> UpdateAsync(Server server);
 
+    /// <summary>
     /// Deletes a server by its globally unique identifier (GUID).
-    /// <param name="guid">The globally unique identifier of the server to delete.</param>
-    /// <returns>A task representing the asynchronous operation. The task result indicates whether the server was successfully deleted.</returns>
+    /// </summary>
     Task<bool> DeleteAsync(Guid guid);
+
+    /// <summary>
+    /// Retrieves a list of servers owned by a specific user.
+    /// </summary>
+    Task<IReadOnlyList<Server>> ListByOwnerAsync(Guid userGuid, int limit = 100, int offset = 0);
+
+    /// <summary>
+    /// Retrieves a list of servers that have no owner.
+    /// </summary>
+    Task<IReadOnlyList<Server>> ListUnownedAsync(int limit = 100, int offset = 0);
+
+    /// <summary>
+    /// Retrieves the username of the owner of a server.
+    /// </summary>
+    Task<string?> GetOwnerUsernameAsync(Guid serverGuid);
+
+    /// <summary>
+    /// Assigns a server to a specific user.
+    /// </summary>
+    Task<bool> AssignToUserAsync(Guid serverGuid, Guid userGuid);
 }
