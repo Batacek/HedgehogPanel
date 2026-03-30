@@ -1,0 +1,82 @@
+// ╦ ╦╔═╗╔╦╗╔═╗╔═╗╦ ╦╔═╗╔═╗  ╔═╗╦═╗╔═╗╔╦╗╔═╗╔═╗╔═╗╦    ╔╗ ╦ ╦╔═╗╔═╗╔═╗╦═╗╔═╗  ╔═╗╦╦  ╔═╗╔═╗
+// ╠═╣║╣  ║║║ ╦║╣ ╠═╣║ ║║ ╦  ╠═╝╠╦╝║ ║ ║ ║ ║║  ║ ║║    ╠╩╗║ ║╠╣ ╠╣ ║╣ ╠╦╝╚═╗  ╠╣ ║║  ║╣ ╚═╗
+// ╩ ╩╚═╝═╩╝╚═╝╚═╝╩ ╩╚═╝╚═╝  ╩  ╩╚═╚═╝ ╩ ╚═╝╚═╝╚═╝╩═╝  ╚═╝╚═╝╚  ╚  ╚═╝╩╚═╚═╝  ╚  ╩╩═╝╚═╝╚═╝
+
+/*
+  Protocol Name:    HedgehogPanel gRPC protocol
+  Proto version:    1.0.0
+  Created:          2026
+  
+  Description:      .proto file for HedgehogPanel
+  GitHub:           https://github.com/batacek/HedgehogPanel & https://github.com/batacek/HedgehogDaemon
+
+  Copyright:        © 2026 batacek.eu
+  License:          Apache-2.0 license (Check LICENSE file)
+*/
+
+syntax = "proto3";
+
+package hedgehog.v1;
+
+
+enum ErrorCode {
+  ERROR_NONE = 0;
+  ERROR_INVALID_TOKEN = 1;
+  ERROR_INVALID_ONE_TIME_CODE = 2;
+  ERROR_ALREADY_REGISTERED = 3;
+  ERROR_UNAUTHORIZED = 4;
+}
+enum Status{
+  STATUS_UNKNOWN = 0;
+  STATUS_OK = 1;
+  STATUS_ERRORED = 2;
+}
+
+
+message PublicHealthCheckRequest {
+}
+
+message PublicHealthCheckResponse {
+  Status status = 1;
+  ErrorCode error_code = 2;
+  int64 uptime = 3;
+}
+
+message AuthContext {
+  string panel_uuid = 1;
+  string token = 2;
+}
+
+message DetailedHealthRequest {
+  AuthContext auth = 1;
+}
+
+message DetailedHealthResponse {
+  float cpu_usage_percent = 1;
+  int64 ram_used_bytes = 2;
+  int64 ram_total_bytes = 3;
+  int32 running_processes = 4;
+  string daemon_uuid = 5;
+  PublicHealthCheckResponse public_health_check = 6;
+}
+
+message RegisterPanelRequest {
+  string one_time_code = 1;   // One-time code from Daemon installation
+  string panel_uuid = 2;
+  string panel_display_name = 3;
+}
+
+message RegisterPanelResponse {  
+  ErrorCode error_code = 1;     // 0 for success
+  string token = 2;
+  string daemon_uuid = 3;
+}
+
+message HandshakeRequest {
+  AuthContext auth = 1;
+}
+
+message HandshakeResponse {
+  string daemon_uuid = 1;
+  ErrorCode error_code = 2;
+}
