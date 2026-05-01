@@ -15,6 +15,7 @@ using HedgehogPanel.Infrastructure.Persistence.PostgreSQL.Repositories;
 using HedgehogPanel.Infrastructure.Persistence.PostgreSQL;
 using HedgehogPanel.Infrastructure.Logging;
 using HedgehogPanel.Infrastructure.Configuration;
+using HedgehogPanel.Infrastructure.Daemon;
 using HedgehogPanel.Infrastructure.Persistence.Store;
 using HedgehogPanel.Infrastructure.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -110,6 +111,9 @@ public static class HedgehogStartupExtensions
         builder.Services.AddSingleton<IServerRepository, ServerRepository>();
         builder.Services.AddSingleton<IAccountService, AccountService>();
         builder.Services.AddSingleton<IServerService, ServerService>();
+
+        // gRPC client factory for daemon communication
+        builder.Services.AddSingleton<IDaemonGrpcClientFactory, DaemonGrpcClientFactory>();
 
         logger.Information("Database services and repositories registered.");
 
