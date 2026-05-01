@@ -38,6 +38,7 @@ DROP TABLE IF EXISTS service_owners CASCADE;
 DROP TABLE IF EXISTS server_owners CASCADE;
 DROP TABLE IF EXISTS services CASCADE;
 DROP TABLE IF EXISTS servers CASCADE;
+DROP TABLE IF EXISTS nodes CASCADE;
 DROP TABLE IF EXISTS user_groups CASCADE;
 DROP TABLE IF EXISTS groups CASCADE;
 DROP TABLE IF EXISTS users CASCADE; 
@@ -75,12 +76,27 @@ CREATE TABLE user_groups (
                              FOREIGN KEY (group_uuid) REFERENCES groups(uuid) ON DELETE CASCADE
 );
 
+-- Nodes (Daemons)
+CREATE TABLE nodes (
+                       uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                       name VARCHAR NOT NULL,
+                       ip_address VARCHAR NOT NULL,
+                       port INT NOT NULL,
+                       description TEXT,
+                       status VARCHAR,
+                       registration_token VARCHAR,
+                       last_seen TIMESTAMP,
+                       created_at TIMESTAMP DEFAULT now()
+);
+
 -- Servers
 CREATE TABLE servers (
                          uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                          name VARCHAR NOT NULL,
                          description TEXT,
-                         created_at TIMESTAMP DEFAULT now()
+                         node_uuid UUID,
+                         created_at TIMESTAMP DEFAULT now(),
+                         FOREIGN KEY (node_uuid) REFERENCES nodes(uuid) ON DELETE SET NULL
 );
 
 -- Services
@@ -144,6 +160,7 @@ CREATE INDEX idx_server_owners_group ON server_owners(group_uuid);
 CREATE INDEX idx_service_owners_user ON service_owners(user_uuid);
 CREATE INDEX idx_service_owners_group ON service_owners(group_uuid);
 CREATE INDEX idx_services_server ON services(server_uuid);
+CREATE INDEX idx_servers_node ON servers(node_uuid);
 
 CREATE TABLE user_security_events (
                                       id               UUID PRIMARY KEY,
