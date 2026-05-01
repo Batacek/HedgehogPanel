@@ -109,6 +109,7 @@ public static class HedgehogStartupExtensions
         // Logical layers registration
         builder.Services.AddSingleton<IAccountRepository, AccountRepository>();
         builder.Services.AddSingleton<IServerRepository, ServerRepository>();
+        builder.Services.AddSingleton<INodeRepository, NodeRepository>();
         builder.Services.AddSingleton<IAccountService, AccountService>();
         builder.Services.AddSingleton<IServerService, ServerService>();
 

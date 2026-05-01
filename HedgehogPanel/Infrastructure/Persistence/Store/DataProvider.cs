@@ -167,4 +167,9 @@ public class DataProvider : IDataProvider
     {
         _store.Remove<Server>(serverId);
     }
+
+    public void InvalidateNode(Guid nodeId)
+    {
+        _store.Remove<Node>(nodeId);
+    }
 }
