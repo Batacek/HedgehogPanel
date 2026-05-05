@@ -43,6 +43,28 @@
 </div>
 
 <div class="card">
+  <h3>Create Node</h3>
+  <div id="create-node-msg" class="note" hidden></div>
+  <form id="create-node-form">
+    <div class="form-row">
+      <label>Name<input name="name" required></label>
+      <label>IP Address<input name="ipAddress" required></label>
+    </div>
+    <div class="form-row">
+      <label>Port<input name="port" type="number" required value="50051"></label>
+      <label>Status<input name="status" placeholder="e.g., online, offline"></label>
+    </div>
+    <div class="form-row">
+      <label>Description<input name="description"></label>
+    </div>
+    <div class="form-row">
+      <label>Registration Token<input name="registrationToken"></label>
+    </div>
+    <button type="submit">Create</button>
+  </form>
+</div>
+
+<div class="card">
   <h3>Unlock Blocked User</h3>
   <p>Unlock a user who has been blocked due to too many failed login attempts. You need to provide the username and the IP address from which the failed attempts originated.</p>
   <div id="unlock-user-msg" class="note" hidden></div>
@@ -55,7 +77,7 @@
   </form>
 </div>
 
-<div class="grid grid-2">
+<div class="grid grid-3">
   <div class="card">
     <h3>Users</h3>
     <div id="admin-users-msg" class="note" hidden></div>
@@ -65,6 +87,11 @@
     <h3>Servers</h3>
     <div id="admin-servers-msg" class="note" hidden></div>
     <div id="admin-servers"></div>
+  </div>
+  <div class="card">
+    <h3>Nodes</h3>
+    <div id="admin-nodes-msg" class="note" hidden></div>
+    <div id="admin-nodes"></div>
   </div>
 </div>
 
@@ -322,6 +349,96 @@
     }
   }
 
+  async function loadNodes(){
+    const listEl = document.getElementById('admin-nodes');
+    const msgEl = 'admin-nodes-msg';
+    try {
+      setNote(msgEl, '');
+      const data = await fetchJson('/api/nodes');
+      if (!listEl) return;
+      if (!Array.isArray(data) || data.length === 0){
+        listEl.innerHTML = '<div class="note">No nodes found.</div>';
+        return;
+      }
+      const table = document.createElement('table');
+      table.className = 'table';
+      
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['Name', 'IP:Port', 'Status', ''].forEach(text => {
+        const th = document.createElement('th');
+        th.textContent = text;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+      
+      const tbody = document.createElement('tbody');
+      data.forEach(n => {
+        const row = document.createElement('tr');
+        
+        const nameCell = document.createElement('td');
+        nameCell.textContent = n.name;
+        row.appendChild(nameCell);
+        
+        const ipPortCell = document.createElement('td');
+        ipPortCell.textContent = `${n.ipAddress}:${n.port}`;
+        row.appendChild(ipPortCell);
+        
+        const statusCell = document.createElement('td');
+        statusCell.textContent = n.status || 'unknown';
+        row.appendChild(statusCell);
+        
+        const actionCell = document.createElement('td');
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Delete';
+        delBtn.dataset.delNode = n.id;
+        actionCell.appendChild(delBtn);
+        row.appendChild(actionCell);
+        
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      
+      listEl.innerHTML = '';
+      listEl.appendChild(table);
+      listEl.querySelectorAll('[data-del-node]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          if (!confirm('Delete node?')) return;
+          try {
+            const xsrfToken = document.cookie.split('; ')
+              .find(row => row.startsWith('XSRF-TOKEN='))
+              ?.split('=')
+              .slice(1)
+              .join('=');
+            const res = await fetch('/api/nodes/'+encodeURIComponent(btn.dataset.delNode), { 
+              method:'DELETE', 
+              headers: { 'X-CSRF-Token': xsrfToken || '' },
+              credentials:'same-origin' 
+            });
+            if (res.ok) {
+              await loadNodes();
+            } else {
+              const msg = await readError(res);
+              setNote(msgEl, `Failed to delete node: ${msg}`, 'danger');
+            }
+          } catch (e) {
+            setNote(msgEl, `Failed to delete node: ${e.message||e}`, 'danger');
+          }
+        });
+      });
+    } catch (e) {
+      if (e && (e.status === 401 || e.status === 403)) {
+        listEl.innerHTML = '<div class="note danger">Access denied. Admin only.</div>';
+        setNote(msgEl, 'Access denied. You do not have permission to view nodes.', 'danger');
+      } else {
+        const message = (e && e.message) ? e.message : 'Failed to load nodes.';
+        setNote(msgEl, message, 'danger');
+        if (listEl) listEl.innerHTML = '';
+      }
+    }
+  }
+
   function setBusy(btn, busy) {
     if (!btn) return;
     btn.disabled = !!busy;
@@ -410,6 +527,45 @@
     }
   });
 
+  document.getElementById('create-node-form')?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const msgId = 'create-node-msg';
+    setNote(msgId, '');
+    const fd = new FormData(e.target);
+    const payload = Object.fromEntries(fd.entries());
+    if (payload.port) payload.port = parseInt(payload.port, 10);
+    const btn = e.submitter || e.target.querySelector('button[type="submit"]');
+    try {
+      setBusy(btn, true);
+      const xsrfToken = document.cookie.split('; ')
+        .find(row => row.startsWith('XSRF-TOKEN='))
+        ?.split('=')
+        .slice(1)
+        .join('=');
+      const res = await fetch('/api/nodes', { 
+        method:'POST', 
+        headers:{ 
+          'Content-Type':'application/json',
+          'X-CSRF-Token': xsrfToken || ''
+        }, 
+        body: JSON.stringify(payload), 
+        credentials:'same-origin' 
+      });
+      if (res.ok) {
+        setNote(msgId, 'Node created successfully.', 'success');
+        e.target.reset();
+        await loadNodes();
+      } else {
+        const msg = await readError(res);
+        setNote(msgId, `Failed to create node: ${msg}`, 'danger');
+      }
+    } catch (err) {
+      setNote(msgId, `Failed to create node: ${err.message||err}`, 'danger');
+    } finally {
+      setBusy(btn, false);
+    }
+  });
+
   document.getElementById('unlock-user-form')?.addEventListener('submit', async (e)=>{
     e.preventDefault();
     const msgId = 'unlock-user-msg';
@@ -448,6 +604,6 @@
     }
   });
 
-  await Promise.allSettled([loadUsers(), loadServers()]);
+  await Promise.allSettled([loadUsers(), loadServers(), loadNodes()]);
 })();
 </script>

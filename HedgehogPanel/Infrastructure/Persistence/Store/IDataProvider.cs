@@ -42,4 +42,10 @@ public interface IDataProvider
     /// </summary>
     /// <param name="serverId">The unique identifier of the server to invalidate.</param>
     void InvalidateServer(Guid serverId);
+
+    /// <summary>
+    /// Invalidates the cached data for a specific node by its identifier.
+    /// </summary>
+    /// <param name="nodeId">The unique identifier of the node to invalidate.</param>
+    void InvalidateNode(Guid nodeId);
 }
