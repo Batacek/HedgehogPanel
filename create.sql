@@ -15,7 +15,7 @@
   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝
 
   Database Name:    hedgehogdb
-  Version:          1.1.0
+  Version:          1.2.0
   Created:          2026
   
   Description:      Database for Server Management System
