@@ -112,6 +112,16 @@ public class NodeRepository : INodeRepository
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
 
+        // Check if node with same name already exists
+        const string checkSql = @"SELECT EXISTS(SELECT 1 FROM nodes WHERE name = @name)";
+        await using var checkCmd = new NpgsqlCommand(checkSql, npgsqlConn);
+        checkCmd.Parameters.AddWithValue("@name", node.Name);
+        var existsObj = await checkCmd.ExecuteScalarAsync();
+        if (existsObj != null && (bool)existsObj)
+        {
+            throw new InvalidOperationException($"Node with name '{node.Name}' already exists.");
+        }
+
         const string sql = "INSERT INTO nodes (uuid, name, ip_address, port, description, status, registration_token, last_seen) VALUES (@id, @name, @ip, @port, @desc, @status, @token, @lastSeen)";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@id", node.Guid);
@@ -138,7 +148,17 @@ public class NodeRepository : INodeRepository
     {
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
-
+        
+        // Check if node with same name already exists
+        const string checkSql = @"SELECT EXISTS(SELECT 1 FROM nodes WHERE name = @name)";
+        await using var checkCmd = new NpgsqlCommand(checkSql, npgsqlConn);
+        checkCmd.Parameters.AddWithValue("@name", node.Name);
+        var existsObj = await checkCmd.ExecuteScalarAsync();
+        if (existsObj != null && (bool)existsObj)
+        {
+            throw new InvalidOperationException($"Node with name '{node.Name}' already exists.");
+        }
+        
         const string sql = "UPDATE nodes SET name = @name, ip_address = @ip, port = @port, description = @desc, status = @status, registration_token = @token, last_seen = @lastSeen WHERE uuid = @id";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@name", node.Name);
