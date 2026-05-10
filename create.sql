@@ -15,7 +15,7 @@
   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝
 
   Database Name:    hedgehogdb
-  Version:          1.2.1
+  Version:          1.2.2
   Created:          2026
   
   Description:      Database for Server Management System
@@ -79,7 +79,7 @@ CREATE TABLE user_groups (
 -- Nodes (Daemons)
 CREATE TABLE nodes (
                        uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                       name VARCHAR NOT NULL,
+                       name VARCHAR NOT NULL UNIQUE,
                        ip_address VARCHAR NOT NULL,
                        port INT NOT NULL,
                        description TEXT,
