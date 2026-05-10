@@ -15,7 +15,7 @@
   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝
 
   Database Name:    hedgehogdb
-  Version:          1.2.0
+  Version:          1.2.1
   Created:          2026
   
   Description:      Database for Server Management System
@@ -93,6 +93,8 @@ CREATE TABLE nodes (
 CREATE TABLE servers (
                          uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                          name VARCHAR NOT NULL,
+                         hostname VARCHAR NOT NULL,
+                         daemon_port int not null,
                          description TEXT,
                          node_uuid UUID,
                          created_at TIMESTAMP DEFAULT now(),
@@ -198,10 +200,10 @@ ON CONFLICT (username) DO NOTHING;
 SELECT * FROM users;
 
 -- Insert default servers
-INSERT INTO servers (name, description, created_at)
-VALUES ('Main Server', 'Primary production server', NOW()),
-       ('Backup Server', 'Backup and redundancy server', NOW()),
-       ('Development Server', 'Development and testing environment', NOW());
+INSERT INTO servers (name, description, hostname, daemon_port, created_at)
+VALUES ('Main Server', 'Primary production server', 'main.hedgehog.batacek.eu', 50051, NOW()),
+       ('Backup Server', 'Backup and redundancy server', 'backup.hedgehog.batacek.eu', 50051, NOW()),
+       ('Development Server', 'Development and testing environment', 'dev.hedgehog.batacek.eu', 50051, NOW());
 
 -- Assign servers to admin user (using subquery to get admin's UUID)
 INSERT INTO server_owners (server_uuid, user_uuid, group_uuid)

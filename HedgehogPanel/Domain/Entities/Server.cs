@@ -9,19 +9,19 @@ public class Server
     public byte? LocalId { get; private set; }
     public string Name { get; private set; }
     public string Hostname { get; private set; }
-    public int Port { get; private set; }
+    public int DaemonPort { get; private set; }
     public ServerStatus Status { get; private set; }
     public string? Description { get; private set; }
     public DateTime? LastSeen { get; private set; }
     public DateTime? CreatedAt { get; private set; }
     public uint RowVersion { get; set; }
 
-    public Server(Guid guid, string name, string hostname, int port = 22, ServerStatus status = ServerStatus.Unknown, byte? localId = null, string? description = null, DateTime? lastSeen = null, DateTime? createdAt = null, uint rowVersion = 0)
+    public Server(Guid guid, string name, string hostname, int daemonPort = 22, ServerStatus status = ServerStatus.Unknown, byte? localId = null, string? description = null, DateTime? lastSeen = null, DateTime? createdAt = null, uint rowVersion = 0)
     {
         Guid = guid;
         Name = name ?? throw new ArgumentNullException(nameof(name));
         Hostname = hostname ?? throw new ArgumentNullException(nameof(hostname));
-        Port = port;
+        DaemonPort = daemonPort;
         Status = status;
         LocalId = localId;
         Description = description;
