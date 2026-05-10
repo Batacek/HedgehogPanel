@@ -1,6 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# 
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HedgehogPanel", "HedgehogPanel\HedgehogPanel.csproj", "{953A9DD2-8474-455A-A9B3-436C1F8B0F64}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HedgehogPanel.Tests", "HedgehogPanel.Tests\HedgehogPanel.Tests.csproj", "{ED1E225D-A054-4EF6-AB15-16CF7D686367}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -12,5 +15,9 @@ Global
 		{953A9DD2-8474-455A-A9B3-436C1F8B0F64}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{953A9DD2-8474-455A-A9B3-436C1F8B0F64}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{953A9DD2-8474-455A-A9B3-436C1F8B0F64}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ED1E225D-A054-4EF6-AB15-16CF7D686367}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ED1E225D-A054-4EF6-AB15-16CF7D686367}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ED1E225D-A054-4EF6-AB15-16CF7D686367}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ED1E225D-A054-4EF6-AB15-16CF7D686367}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
