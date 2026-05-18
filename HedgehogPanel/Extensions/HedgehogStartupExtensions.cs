@@ -173,6 +173,12 @@ public static class HedgehogStartupExtensions
             });
         });
 
+        builder.Services.AddHttpClient("FontProxy", client =>
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("HedgehogPanel/1.0 FontProxy");
+            client.Timeout = System.TimeSpan.FromSeconds(10);
+        });
+
         builder.Services.AddMemoryCache();
         builder.Services.AddScoped<IAccountLockoutService, AccountLockoutService>();
 

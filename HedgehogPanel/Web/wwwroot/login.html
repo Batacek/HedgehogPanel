@@ -4,94 +4,129 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sign in · Hedgehog Panel</title>
-  <link rel="stylesheet" href="/html/css/style.css" />
-  <style>
-    .login-wrap {
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-      background: radial-gradient(1000px 600px at 20% -10%, rgba(122,46,42,0.12), transparent 50%),
-                  radial-gradient(800px 500px at 80% -10%, rgba(85,107,47,0.12), transparent 45%),
-                  var(--bg);
-    }
-    .login-card {
-      width: 100%;
-      max-width: 420px;
-      background: var(--panel);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: var(--radius);
-      padding: 20px 18px 18px 18px;
-      box-shadow: var(--shadow);
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-    .brand .brand-logo { width: 28px; height: 28px; border-radius: 6px; background: radial-gradient(circle at 30% 30%, #c85c52, var(--accent-red)); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.4), 0 2px 10px rgba(0,0,0,0.35); }
-    .brand .brand-title { font-weight: 700; letter-spacing: .5px; }
-
-    .field { margin-top: 12px; }
-    .label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-    .input {
-      width: 100%;
-      padding: 10px 12px;
-      color: var(--text);
-      background: var(--panel-2);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 10px;
-      outline: none;
-      transition: border-color .15s ease, box-shadow .15s ease;
-      font: inherit;
-    }
-    .input:focus { border-color: rgba(0,0,153,0.35); box-shadow: 0 0 0 3px rgba(0,0,153,0.18); }
-
-    .button {
-      width: 100%;
-      margin-top: 14px;
-      padding: 11px 14px;
-      background: linear-gradient(180deg, #22262c, #1b1f24);
-      color: var(--text);
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 10px;
-      cursor: pointer;
-      font: inherit;
-      transition: transform .12s ease, border-color .12s ease, background .12s ease;
-    }
-    .button:hover { transform: translateY(-1px); border-color: rgba(255,255,255,0.18); }
-
-    .error { margin-top: 10px; color: #f2b2ae; font-size: 14px; display: none; }
-    .hint { margin-top: 8px; color: var(--muted); font-size: 12px; }
-  </style>
+  <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/inter-latin-ext.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/html/css/login.css">
 </head>
 <body>
-  <div class="login-wrap">
-    <div class="login-card">
-      <div class="brand">
-        <div class="brand-logo" aria-hidden="true"></div>
-        <div class="brand-title">Hedgehog Panel</div>
+  <div class="login-stage">
+    <!-- Left decorative column -->
+    <div class="login-poster">
+      <div class="poster-head">
+        <span class="brand-mark" aria-hidden="true">🦔</span>
+        <h1>Hedgehog Panel</h1>
+        <div class="lang-switch">
+          <button class="lang-btn active" data-lang="en">EN</button>
+          <button class="lang-btn" data-lang="cs">CS</button>
+        </div>
       </div>
-      <h2 style="margin: 0 0 8px 0;">Sign in</h2>
-      <p class="hint">Use username "admin" or "default_user".</p>
 
-      <form id="login-form" novalidate>
-        <div class="field">
-          <label class="label" for="username">Username</label>
-          <input class="input" id="username" name="username" type="text" autocomplete="username" required />
+      <div class="poster-body">
+        <p class="login-wordmark">hedgehog<span class="dot"></span></p>
+        <p class="login-tagline" id="lbl-tagline">Server management, simplified.</p>
+        <p class="login-subline" id="lbl-subline">Monitor services, manage nodes, and control your infrastructure from one place.</p>
+        <div class="login-spikes" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
         </div>
-        <div class="field">
-          <label class="label" for="password">Password</label>
-          <input class="input" id="password" name="password" type="password" autocomplete="current-password" required />
+      </div>
+
+      <div class="poster-foot">Hedgehog Panel · v1.2.2 · Batacek.eu</div>
+    </div>
+
+    <!-- Right form column -->
+    <div class="login-form-wrap">
+      <div class="login-card">
+        <h3 id="lbl-heading">Sign in</h3>
+        <p class="sub" id="lbl-sub">Enter your credentials to continue.</p>
+
+        <form id="login-form" novalidate>
+          <div class="field">
+            <label for="username" id="lbl-username">Username</label>
+            <input class="input" id="username" name="username" type="text" autocomplete="username" required />
+          </div>
+          <div class="field">
+            <label for="password" id="lbl-password">Password</label>
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" required />
+          </div>
+          <div id="error" class="error-msg" role="alert"></div>
+          <button class="btn primary" type="submit" id="lbl-submit">Sign in</button>
+        </form>
+
+        <div class="ext-help" id="lbl-help">
+          Default credentials: <code>admin</code> / <code>admin123</code>
         </div>
-        <button class="button" type="submit">Sign in</button>
-        <div id="error" class="error" role="alert"></div>
-      </form>
+      </div>
     </div>
   </div>
 
   <script>
+    const i18n = {
+      en: {
+        title:    'Sign in · Hedgehog Panel',
+        heading:  'Sign in',
+        sub:      'Enter your credentials to continue.',
+        username: 'Username',
+        password: 'Password',
+        submit:   'Sign in',
+        help:     'Default credentials: <code>admin</code> / <code>admin123</code>',
+        tagline:  'Infrastructure management, simplified.',
+        subline:  'Monitor services, manage nodes, and control your infrastructure from one place.',
+        errBoth:  'Please enter both username and password.',
+        errServer:'Server error. Please try again.',
+        errNet:   'Unable to contact the server.',
+        errRate:  'Too many requests. Please wait before trying again.',
+        lblLocked:'Locked',
+        lblRate:  'Rate limited',
+      },
+      cs: {
+        title:    'Přihlášení · Hedgehog Panel',
+        heading:  'Přihlásit se',
+        sub:      'Zadejte přihlašovací údaje pro pokračení.',
+        username: 'Uživatelské jméno',
+        password: 'Heslo',
+        submit:   'Přihlásit se',
+        help:     'Výchozí přihlašovací údaje: <code>admin</code> / <code>admin123</code>',
+        tagline:  'Správa infrastruktury, zjednodušeně.',
+        subline:  'Sledujte služby, spravujte uzly a ovládejte infrastrukturu z jednoho místa.',
+        errBoth:  'Zadejte prosím uživatelské jméno i heslo.',
+        errServer:'Chyba serveru. Zkuste to prosím znovu.',
+        errNet:   'Nelze se spojit se serverem.',
+        errRate:  'Příliš mnoho požadavků. Chvíli počkejte.',
+        lblLocked:'Uzamčeno',
+        lblRate:  'Omezeno',
+      }
+    };
+
+    let currentLang = localStorage.getItem('hp-lang') || 'en';
+
+    function setLang(lang) {
+      if (!i18n[lang]) return;
+      currentLang = lang;
+      localStorage.setItem('hp-lang', lang);
+
+      const t = i18n[lang];
+      document.title = t.title;
+      document.getElementById('lbl-heading').textContent  = t.heading;
+      document.getElementById('lbl-sub').textContent      = t.sub;
+      document.getElementById('lbl-username').textContent = t.username;
+      document.getElementById('lbl-password').textContent = t.password;
+      document.getElementById('lbl-submit').textContent   = t.submit;
+      document.getElementById('lbl-help').innerHTML       = t.help;
+      document.getElementById('lbl-tagline').innerHTML    = t.tagline;
+      document.getElementById('lbl-subline').textContent  = t.subline;
+
+      document.querySelectorAll('.lang-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.lang === lang);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setLang(currentLang);
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.addEventListener('click', () => setLang(btn.dataset.lang));
+      });
+    });
+
     (function() {
       const form = document.getElementById('login-form');
       const errorEl = document.getElementById('error');
@@ -114,7 +149,7 @@
             clearInterval(countdownTimer);
             countdownTimer = null;
             btn.disabled = false;
-            btn.textContent = 'Sign in';
+            btn.textContent = i18n[currentLang].submit;
           }
         }, 1000);
 
@@ -133,9 +168,8 @@
         clearError();
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
-        if (!username || !password) { showError('Please enter both username and password.'); return; }
-        
-        // Read Antiforgery token from cookie
+        if (!username || !password) { showError(i18n[currentLang].errBoth); return; }
+
         const xsrfToken = document.cookie.split('; ')
           .find(row => row.startsWith('XSRF-TOKEN='))
           ?.split('=')
@@ -145,7 +179,7 @@
         try {
           const res = await fetch('/api/login', {
             method: 'POST',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
               'X-CSRF-Token': xsrfToken || ''
             },
@@ -161,20 +195,19 @@
             const data = await res.json().catch(() => ({}));
             const remain = (data && typeof data.lockoutTimeRemaining === 'string') ? data.lockoutTimeRemaining : null;
             showError((data && data.error) || 'Account locked due to too many failed attempts.');
-            // Parse mm:ss -> seconds
             let seconds = 0;
             if (remain && /\d{2}:\d{2}/.test(remain)) {
               const [m,s] = remain.split(':').map(x => parseInt(x,10));
               seconds = (m*60 + s) || 0;
             }
-            if (seconds > 0) disableWithCountdown(seconds, 'Locked');
+            if (seconds > 0) disableWithCountdown(seconds, i18n[currentLang].lblLocked);
             return;
           }
 
           if (res.status === 429) {
             const retryAfter = parseInt(res.headers.get('Retry-After') || '0', 10);
-            showError('Too many requests. Please wait before trying again.');
-            if (retryAfter > 0) disableWithCountdown(retryAfter, 'Rate limited');
+            showError(i18n[currentLang].errRate);
+            if (retryAfter > 0) disableWithCountdown(retryAfter, i18n[currentLang].lblRate);
             return;
           }
 
@@ -185,15 +218,15 @@
             const data = await res.json().catch(() => ({}));
             showError((data && data.error) || 'Invalid username or password.');
           } else {
-            showError('Server error. Please try again.');
+            showError(i18n[currentLang].errServer);
           }
         } catch (err) {
-          showError('Unable to contact the server.');
+          showError(i18n[currentLang].errNet);
         }
       });
 
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && (document.activeElement === document.body)) {
+        if (e.key === 'Enter' && document.activeElement === document.body) {
           form.requestSubmit();
         }
       });
