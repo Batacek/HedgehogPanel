@@ -445,16 +445,6 @@ public static class HedgehogStartupExtensions
         {
             if (ctx.User?.Identity?.IsAuthenticated == true)
             {
-                ctx.Response.Headers["Content-Security-Policy"] =
-                    "default-src 'self'; " +
-                    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; " +
-                    "style-src 'self' 'unsafe-inline' blob:; " +
-                    "img-src 'self' data: blob:; " +
-                    "font-src 'self' blob:; " +
-                    "connect-src 'self' blob:; " +
-                    "frame-ancestors 'none'; " +
-                    "form-action 'self';";
-
                 var indexPath = Path.Combine(env.ContentRootPath, "Web", "wwwroot", "index.html");
                 var html = await File.ReadAllTextAsync(indexPath);
                 return Results.Content(html, "text/html; charset=utf-8");
