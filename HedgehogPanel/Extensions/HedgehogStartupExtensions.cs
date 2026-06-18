@@ -291,6 +291,19 @@ public static class HedgehogStartupExtensions
             await next();
         });
 
+        // Archived old frontend lives under wwwroot/old but must never be served
+        app.Use(async (context, next) =>
+        {
+            var p = context.Request.Path;
+            if (p.StartsWithSegments("/old") || p.StartsWithSegments("/html/old"))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsync("Forbidden");
+                return;
+            }
+            await next();
+        });
+
         app.UseSerilogRequestLogging();
         if (config.Security.Cors.Enabled)
         {
@@ -376,17 +389,6 @@ public static class HedgehogStartupExtensions
                         context.Response.Redirect("/");
                         return;
                     }
-
-                    var isAdmin = context.User.IsInRole("Admin") || context.User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "Admin");
-                    if (!isAdmin)
-                    {
-                        if (path.Equals("/html/components/MainContent/Admin.html", StringComparison.OrdinalIgnoreCase))
-                        {
-                            context.Response.StatusCode = 403;
-                            await context.Response.WriteAsync("Forbidden: Admins only.");
-                            return;
-                        }
-                    }
                 }
             }
 
@@ -443,14 +445,18 @@ public static class HedgehogStartupExtensions
         {
             if (ctx.User?.Identity?.IsAuthenticated == true)
             {
+                ctx.Response.Headers["Content-Security-Policy"] =
+                    "default-src 'self'; " +
+                    "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; " +
+                    "style-src 'self' 'unsafe-inline' blob:; " +
+                    "img-src 'self' data: blob:; " +
+                    "font-src 'self' blob:; " +
+                    "connect-src 'self' blob:; " +
+                    "frame-ancestors 'none'; " +
+                    "form-action 'self';";
+
                 var indexPath = Path.Combine(env.ContentRootPath, "Web", "wwwroot", "index.html");
                 var html = await File.ReadAllTextAsync(indexPath);
-                var nonce = ctx.Items["csp-nonce"]?.ToString() ?? "";
-                
-                // Inject nonce into the main script tag and add data attribute for JS access
-                html = html.Replace("<script src=\"/html/js/main.js\"></script>", 
-                    $"<script src=\"/html/js/main.js\" nonce=\"{nonce}\" data-csp-nonce=\"{nonce}\"></script>");
-                
                 return Results.Content(html, "text/html; charset=utf-8");
             }
             return Results.Redirect("/html/login.html");
