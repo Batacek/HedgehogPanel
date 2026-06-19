@@ -26,7 +26,7 @@ public class ServerServiceTests
     {
         // Arrange
         var name = "TestServer";
-        var hostname = "test.example.com";
+        var hostname = "test.hedgehog.batacek.eu";
         var port = 22;
         _mockRepo.Setup(r => r.CreateAsync(It.IsAny<Server>())).ReturnsAsync(true);
 
@@ -50,7 +50,7 @@ public class ServerServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<Exception>(() => 
-            _service.CreateServerAsync("server", "host.com", 22));
+            _service.CreateServerAsync("server", "host.hedgehog.batacek.eu", 22));
         Assert.Equal("Failed to create server", exception.Message);
     }
 
@@ -59,7 +59,7 @@ public class ServerServiceTests
     {
         // Arrange
         var guid = Guid.NewGuid();
-        var expectedServer = new Server(guid, "TestServer", "test.com", 22);
+        var expectedServer = new Server(guid, "TestServer", "test.hedgehog.batacek.eu", 22);
         _mockRepo.Setup(r => r.GetByGuidAsync(guid)).ReturnsAsync(expectedServer);
 
         // Act
@@ -93,8 +93,8 @@ public class ServerServiceTests
         // Arrange
         var servers = new List<Server>
         {
-            new Server(Guid.NewGuid(), "Server1", "host1.com", 22),
-            new Server(Guid.NewGuid(), "Server2", "host2.com", 22)
+            new Server(Guid.NewGuid(), "Server1", "host1.hedgehog.batacek.eu", 22),
+            new Server(Guid.NewGuid(), "Server2", "host2.hedgehog.batacek.eu", 22)
         };
         _mockRepo.Setup(r => r.ListAsync(100, 0)).ReturnsAsync(servers);
 
@@ -112,7 +112,7 @@ public class ServerServiceTests
     public async Task UpdateServerAsync_CallsRepositoryReturnsTrue()
     {
         // Arrange
-        var server = new Server(Guid.NewGuid(), "UpdatedServer", "updated.com", 2222);
+        var server = new Server(Guid.NewGuid(), "UpdatedServer", "updated.hedgehog.batacek.eu", 2222);
         _mockRepo.Setup(r => r.UpdateAsync(server)).ReturnsAsync(true);
 
         // Act
@@ -127,7 +127,7 @@ public class ServerServiceTests
     public async Task UpdateServerAsync_WhenRepoFails_ReturnsFalse()
     {
         // Arrange
-        var server = new Server(Guid.NewGuid(), "Server", "host.com", 22);
+        var server = new Server(Guid.NewGuid(), "Server", "host.hedgehog.batacek.eu", 22);
         _mockRepo.Setup(r => r.UpdateAsync(server)).ReturnsAsync(false);
 
         // Act
@@ -175,8 +175,8 @@ public class ServerServiceTests
         var ownerGuid = Guid.NewGuid();
         var servers = new List<Server>
         {
-            new Server(Guid.NewGuid(), "OwnedServer1", "host1.com", 22),
-            new Server(Guid.NewGuid(), "OwnedServer2", "host2.com", 22)
+            new Server(Guid.NewGuid(), "OwnedServer1", "host1.hedgehog.batacek.eu", 22),
+            new Server(Guid.NewGuid(), "OwnedServer2", "host2.hedgehog.batacek.eu", 22)
         };
         _mockRepo.Setup(r => r.ListByOwnerAsync(ownerGuid, 100, 0)).ReturnsAsync(servers);
 
@@ -195,7 +195,7 @@ public class ServerServiceTests
         // Arrange
         var servers = new List<Server>
         {
-            new Server(Guid.NewGuid(), "UnownedServer", "host.com", 22)
+            new Server(Guid.NewGuid(), "UnownedServer", "host.hedgehog.batacek.eu", 22)
         };
         _mockRepo.Setup(r => r.ListUnownedAsync(100, 0)).ReturnsAsync(servers);
 
