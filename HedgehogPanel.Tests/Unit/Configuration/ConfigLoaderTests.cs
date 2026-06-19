@@ -4,6 +4,7 @@ using HedgehogPanel.Infrastructure.Configuration;
 
 namespace HedgehogPanel.Tests.Unit.Configuration;
 
+[Collection("IntegrationTests")]
 public class ConfigLoaderTests
 {
     [Fact]
@@ -30,13 +31,13 @@ public class ConfigLoaderTests
         var originalHost = Environment.GetEnvironmentVariable("DB_HOST");
         try
         {
-            Environment.SetEnvironmentVariable("DB_HOST", "testhost.example.com");
+            Environment.SetEnvironmentVariable("DB_HOST", "testhost.hedgehog.batacek.eu");
 
             // Act
             var config = ConfigLoader.Load(args);
 
             // Assert
-            Assert.Equal("testhost.example.com", config.Database.Host);
+            Assert.Equal("testhost.hedgehog.batacek.eu", config.Database.Host);
         }
         finally
         {
@@ -191,7 +192,7 @@ public class ConfigLoaderTests
         var originalPassword = Environment.GetEnvironmentVariable("DB_PASSWORD");
         try
         {
-            Environment.SetEnvironmentVariable("DB_HOST", "multi.example.com");
+            Environment.SetEnvironmentVariable("DB_HOST", "multi.hedgehog.batacek.eu");
             Environment.SetEnvironmentVariable("DB_USER", "multiuser");
             Environment.SetEnvironmentVariable("DB_PASSWORD", "multipass");
 
@@ -199,7 +200,7 @@ public class ConfigLoaderTests
             var config = ConfigLoader.Load(args);
 
             // Assert
-            Assert.Equal("multi.example.com", config.Database.Host);
+            Assert.Equal("multi.hedgehog.batacek.eu", config.Database.Host);
             Assert.Equal("multiuser", config.Database.Username);
             Assert.Equal("multipass", config.Database.Password);
         }
