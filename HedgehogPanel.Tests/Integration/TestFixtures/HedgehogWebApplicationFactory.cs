@@ -21,13 +21,14 @@ public class HedgehogWebApplicationFactory : WebApplicationFactory<Program>
 {
     static HedgehogWebApplicationFactory()
     {
+        // Database credentials and the JWT secret are taken from the project's .env file; the
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
-        Environment.SetEnvironmentVariable("DB_HOST", "localhost");
-        Environment.SetEnvironmentVariable("DB_PORT", "5432");
-        Environment.SetEnvironmentVariable("DB_USER", "postgres");
-        Environment.SetEnvironmentVariable("DB_PASSWORD", "123456Ab");
-        Environment.SetEnvironmentVariable("DB_NAME", "hedgehogdb_test");
-        Environment.SetEnvironmentVariable("JWT_SECRET", "test-jwt-secret-key-for-integration-tests-0123456789");
+        Environment.SetEnvironmentVariable("DB_HOST", TestDatabaseConfig.Host);
+        Environment.SetEnvironmentVariable("DB_PORT", TestDatabaseConfig.Port.ToString());
+        Environment.SetEnvironmentVariable("DB_USER", TestDatabaseConfig.Username);
+        Environment.SetEnvironmentVariable("DB_PASSWORD", TestDatabaseConfig.Password);
+        Environment.SetEnvironmentVariable("DB_NAME", TestDatabaseConfig.Database);
+        Environment.SetEnvironmentVariable("JWT_SECRET", TestDatabaseConfig.JwtSecret);
     }
 
     /// <summary>When true, antiforgery validation is replaced with a no-op so POST/PUT/DELETE
