@@ -26,7 +26,7 @@ public class AccountServiceTests
     {
         // Arrange
         var username = "testuser";
-        var email = "test@example.com";
+        var email = "test@hedgehog.batacek.eu";
         var password = "securepass123";
         _mockRepo.Setup(r => r.CreateAsync(It.IsAny<Account>(), It.IsAny<string>())).ReturnsAsync(true);
 
@@ -48,7 +48,7 @@ public class AccountServiceTests
         _mockRepo.Setup(r => r.CreateAsync(It.IsAny<Account>(), It.IsAny<string>())).ReturnsAsync(false);
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<Exception>(() => _service.CreateAccountAsync("user", "mail@example.com", "pass"));
+        var exception = await Assert.ThrowsAsync<Exception>(() => _service.CreateAccountAsync("user", "mail@hedgehog.batacek.eu", "pass"));
         Assert.Equal("Failed to create account", exception.Message);
     }
 
@@ -66,7 +66,7 @@ public class AccountServiceTests
     public async Task AuthenticateAsync_WithValidInputs_CallsRepository()
     {
         // Arrange
-        var expectedAccount = new Account(Guid.NewGuid(), "validuser", "valid@example.com", true, null);
+        var expectedAccount = new Account(Guid.NewGuid(), "validuser", "valid@hedgehog.batacek.eu", true, null);
         _mockRepo.Setup(r => r.AuthenticateAsync("validuser", "validpass")).ReturnsAsync(expectedAccount);
 
         // Act
@@ -83,7 +83,7 @@ public class AccountServiceTests
     {
         // Arrange
         var guid = Guid.NewGuid();
-        var expectedAccount = new Account(guid, "user", "mail@example.com", true, null);
+        var expectedAccount = new Account(guid, "user", "mail@hedgehog.batacek.eu", true, null);
         _mockRepo.Setup(r => r.GetByUsernameAsync("user")).ReturnsAsync(expectedAccount);
 
         // Act
