@@ -34,8 +34,11 @@ public class HedgehogLogger : ILoggerService
     public async Task LogSecurityEventAsync(SecurityEvent securityEvent)
     {
         await _fileLogger.LogSecurityEventAsync(securityEvent);
-
-        await _dbLogger.LogSecurityEventAsync(securityEvent);
+        
+        if (_dbLogger != null)
+        {
+            await _dbLogger.LogSecurityEventAsync(securityEvent);
+        }
     }
 
     public static ILoggerService ForContext<T>() => new HedgehogLogger(typeof(T), _dbLoggerInstance);
