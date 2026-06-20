@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>402 · Payment Required · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.74 0.13 95); }
+
+    /* 402 — a stack of coins: "payment required" */
+    .glyph-402 .stack { position: absolute; left: 35px; top: 30px; width: 50px; height: 60px; animation: bob402 3s ease-in-out infinite; }
+    .glyph-402 .disc {
+      position: absolute;
+      left: 0; width: 50px; height: 17px;
+      border: 3px solid var(--err-accent);
+      border-radius: 50%;
+      background: color-mix(in oklab, var(--err-accent) 16%, transparent);
+    }
+    .glyph-402 .d1 { top: 40px; }
+    .glyph-402 .d2 { top: 24px; }
+    .glyph-402 .face {
+      top: 8px;
+      display: grid; place-items: center;
+      font-weight: 800; font-size: 13px; line-height: 1;
+      color: var(--err-accent);
+    }
+    @keyframes bob402 {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-7px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="402">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-402" aria-hidden="true">
+          <div class="stack">
+            <div class="disc d1"></div>
+            <div class="disc d2"></div>
+            <div class="disc face">$</div>
+          </div>
+        </div>
+      </div>
+      <div class="err-code">402</div>
+      <h1 class="err-title">Payment required</h1>
+      <p class="err-msg">This resource is locked behind an active plan. Update your billing to regain access.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="/">Back to panel</a>
+        <a class="err-btn" href="javascript:history.back()">Go back</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>
