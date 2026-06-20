@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>500 · Internal Server Error · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.62 0.14 25); }
+
+    /* 500 — a server rack struck by a fault bolt: "something broke on our side" */
+    .glyph-500 .unit {
+      position: absolute;
+      left: 24px; width: 72px; height: 20px;
+      border: 3px solid rgba(255,255,255,0.22);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.04);
+    }
+    .glyph-500 .u1 { top: 22px; }
+    .glyph-500 .u2 { top: 50px; }
+    .glyph-500 .u3 { top: 78px; }
+    .glyph-500 .unit::before {
+      content: "";
+      position: absolute;
+      right: 9px; top: 50%;
+      transform: translateY(-50%);
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.25);
+    }
+    .glyph-500 .u2::before { background: var(--err-accent); box-shadow: 0 0 8px var(--err-accent); animation: led500 1.6s steps(1) infinite; }
+    .glyph-500 .bolt {
+      position: absolute;
+      left: 50px; top: 28px;
+      width: 26px; height: 64px;
+      background: var(--err-accent);
+      clip-path: polygon(58% 0, 10% 56%, 46% 56%, 30% 100%, 90% 38%, 52% 38%);
+      filter: drop-shadow(0 0 7px var(--err-accent));
+      animation: flick500 1.6s steps(1) infinite;
+    }
+    @keyframes flick500 { 0%,100% { opacity: 1; } 46% { opacity: 0.2; } 54% { opacity: 1; } }
+    @keyframes led500 { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="500">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-500" aria-hidden="true">
+          <div class="unit u1"></div>
+          <div class="unit u2"></div>
+          <div class="unit u3"></div>
+          <div class="bolt"></div>
+        </div>
+      </div>
+      <div class="err-code">500</div>
+      <h1 class="err-title">Internal server error</h1>
+      <p class="err-msg">Something went wrong on our end. The team has been notified — please try again shortly.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="javascript:location.reload()">Try again</a>
+        <a class="err-btn" href="/">Back to panel</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>
