@@ -8,6 +8,8 @@ using HedgehogPanel.Domain.Entities;
 using HedgehogPanel.Infrastructure.Configuration;
 using HedgehogPanel.Infrastructure.Persistence.Store;
 using Npgsql;
+using HedgehogPanel.Domain.Exceptions;
+using HedgehogPanel.Infrastructure.Exceptions;
 
 namespace HedgehogPanel.Infrastructure.Persistence.PostgreSQL.Repositories;
 
@@ -38,7 +40,7 @@ public class NodeRepository : INodeRepository
         const string sql = "SELECT uuid, name, ip_address, port, description, status, registration_token, last_seen, created_at FROM nodes WHERE uuid = @id LIMIT 1";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@id", guid);
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync());
         if (!await reader.ReadAsync()) return null;
 
         var node = MapNode(reader);
@@ -86,7 +88,7 @@ public class NodeRepository : INodeRepository
         cmd.Parameters.AddWithValue("@offset", offset);
         
         var list = new List<Node>();
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync());
         while (await reader.ReadAsync())
         {
             var node = MapNode(reader);
@@ -116,10 +118,10 @@ public class NodeRepository : INodeRepository
         const string checkSql = @"SELECT EXISTS(SELECT 1 FROM nodes WHERE name = @name)";
         await using var checkCmd = new NpgsqlCommand(checkSql, npgsqlConn);
         checkCmd.Parameters.AddWithValue("@name", node.Name);
-        var existsObj = await checkCmd.ExecuteScalarAsync();
+        var existsObj = await DbExceptionGuard.ExecuteAsync(() => checkCmd.ExecuteScalarAsync());
         if (existsObj != null && (bool)existsObj)
         {
-            throw new InvalidOperationException($"Node with name '{node.Name}' already exists.");
+            throw new DuplicateEntityException("Node", "name", node.Name);
         }
 
         const string sql = "INSERT INTO nodes (uuid, name, ip_address, port, description, status, registration_token, last_seen) VALUES (@id, @name, @ip, @port, @desc, @status, @token, @lastSeen)";
@@ -133,7 +135,7 @@ public class NodeRepository : INodeRepository
         cmd.Parameters.AddWithValue("@token", (object?)node.RegistrationToken ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@lastSeen", (object?)node.LastSeen ?? DBNull.Value);
 
-        var result = await cmd.ExecuteNonQueryAsync() > 0;
+        var result = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
         
         if (result && _config.Cache.Enabled)
         {
@@ -153,10 +155,10 @@ public class NodeRepository : INodeRepository
         const string checkSql = @"SELECT EXISTS(SELECT 1 FROM nodes WHERE name = @name)";
         await using var checkCmd = new NpgsqlCommand(checkSql, npgsqlConn);
         checkCmd.Parameters.AddWithValue("@name", node.Name);
-        var existsObj = await checkCmd.ExecuteScalarAsync();
+        var existsObj = await DbExceptionGuard.ExecuteAsync(() => checkCmd.ExecuteScalarAsync());
         if (existsObj != null && (bool)existsObj)
         {
-            throw new InvalidOperationException($"Node with name '{node.Name}' already exists.");
+            throw new DuplicateEntityException("Node", "name", node.Name);
         }
         
         const string sql = "UPDATE nodes SET name = @name, ip_address = @ip, port = @port, description = @desc, status = @status, registration_token = @token, last_seen = @lastSeen WHERE uuid = @id";
@@ -170,7 +172,7 @@ public class NodeRepository : INodeRepository
         cmd.Parameters.AddWithValue("@lastSeen", (object?)node.LastSeen ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@id", node.Guid);
 
-        var result = await cmd.ExecuteNonQueryAsync() > 0;
+        var result = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
         
         if (result && _config.Cache.Enabled)
         {
@@ -190,7 +192,7 @@ public class NodeRepository : INodeRepository
         const string sql = "DELETE FROM nodes WHERE uuid = @id";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@id", guid);
-        var result = await cmd.ExecuteNonQueryAsync() > 0;
+        var result = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
         
         if (result && _config.Cache.Enabled)
         {
