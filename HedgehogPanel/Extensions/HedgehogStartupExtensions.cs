@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
@@ -298,7 +299,10 @@ public static class HedgehogStartupExtensions
             if (p.StartsWithSegments("/old") || p.StartsWithSegments("/html/old"))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsync("Forbidden");
+                if (!await TryServeErrorPageAsync(context, StatusCodes.Status403Forbidden))
+                {
+                    await context.Response.WriteAsync("Forbidden");
+                }
                 return;
             }
             await next();
@@ -309,25 +313,36 @@ public static class HedgehogStartupExtensions
         {
             app.UseCors();
         }
-
+        
         if (!app.Environment.IsDevelopment())
         {
             app.UseExceptionHandler(errApp =>
             {
                 errApp.Run(async context =>
                 {
+                    var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+                    logger.Error(error!, "Unhandled exception while processing {Path}.", context.Request.Path);
+
                     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                    context.Response.ContentType = "application/json";
-                    var problem = new
+                    if (!await TryServeErrorPageAsync(context, StatusCodes.Status500InternalServerError))
                     {
-                        title = "An error occurred while processing your request.",
-                        status = 500,
-                        traceId = context.TraceIdentifier
-                    };
-                    await context.Response.WriteAsJsonAsync(problem);
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsJsonAsync(new
+                        {
+                            title = "An error occurred while processing your request.",
+                            status = 500,
+                            traceId = context.TraceIdentifier
+                        });
+                    }
                 });
             });
         }
+        
+        app.UseStatusCodePages(async statusContext =>
+        {
+            var ctx = statusContext.HttpContext;
+            await TryServeErrorPageAsync(ctx, ctx.Response.StatusCode);
+        });
 
         app.UseRateLimiter();
         app.UseAuthentication();
@@ -478,10 +493,36 @@ public static class HedgehogStartupExtensions
             
             return Results.Content(html, "text/html; charset=utf-8");
         }).AllowAnonymous();
+        
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapGet("/dev/status/{code:int}", (int code) => Results.StatusCode(code)).AllowAnonymous();
+        }
 
         app.MapApi();
 
         return app;
+    }
+
+    /// <summary>
+    /// Writes the static HTML error page for <paramref name="statusCode"/> (from wwwroot/error-pages)
+    /// to the response. Only browser (non-API) requests receive HTML; returns false for API paths or
+    /// when no page exists for the code, so the caller can fall back to a machine-readable response.
+    /// </summary>
+    private static async Task<bool> TryServeErrorPageAsync(HttpContext context, int statusCode)
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+            return false;
+
+        var env = context.RequestServices.GetRequiredService<IWebHostEnvironment>();
+        var pagePath = Path.Combine(env.ContentRootPath, "Web", "wwwroot", "error-pages", $"{statusCode}.html");
+        if (!File.Exists(pagePath))
+            return false;
+
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "text/html; charset=utf-8";
+        await context.Response.SendFileAsync(pagePath);
+        return true;
     }
 
     private static void InitializeSerilog(HedgehogConfig config)
