@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>501 · Not Implemented · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.64 0.12 290); }
+
+    /* 501 — a tower crane still hoisting blocks into place: "not built yet" */
+    .glyph-501 .mast {
+      position: absolute; left: 36px; top: 26px;
+      width: 7px; height: 74px;
+      background: var(--err-accent);
+      border-radius: 3px;
+    }
+    .glyph-501 .tip {
+      position: absolute; left: 37px; top: 16px;
+      width: 5px; height: 12px;
+      background: var(--err-accent);
+      border-radius: 2px;
+    }
+    .glyph-501 .base {
+      position: absolute; left: 26px; bottom: 16px;
+      width: 28px; height: 6px;
+      background: var(--err-accent);
+      border-radius: 3px;
+    }
+    .glyph-501 .jib {
+      position: absolute; left: 39px; top: 26px;
+      width: 60px; height: 6px;
+      background: var(--err-accent);
+      border-radius: 3px;
+    }
+    .glyph-501 .cjib {
+      position: absolute; left: 16px; top: 26px;
+      width: 25px; height: 6px;
+      background: var(--err-accent);
+      border-radius: 3px;
+    }
+    .glyph-501 .weight {
+      position: absolute; left: 14px; top: 22px;
+      width: 11px; height: 16px;
+      background: var(--err-accent);
+      border-radius: 2px;
+    }
+    .glyph-501 .stay {
+      position: absolute; top: 20px;
+      height: 2px;
+      background: color-mix(in oklab, var(--err-accent) 70%, transparent);
+      transform-origin: left center;
+    }
+    .glyph-501 .stay.r { left: 39px; width: 60px; transform: rotate(6deg); }
+    .glyph-501 .stay.l { left: 39px; width: 26px; transform: rotate(186deg); }
+    .glyph-501 .load {
+      position: absolute; left: 78px; top: 32px;
+      animation: lift501 3s ease-in-out infinite;
+    }
+    .glyph-501 .cable {
+      position: absolute; left: 50%; top: 0;
+      transform: translateX(-50%);
+      width: 2px; height: 24px;
+      background: color-mix(in oklab, var(--err-accent) 75%, transparent);
+    }
+    .glyph-501 .block {
+      position: absolute; left: 50%; top: 24px;
+      transform: translateX(-50%);
+      width: 24px; height: 17px;
+      border: 3px solid var(--err-accent);
+      border-radius: 3px;
+      background: color-mix(in oklab, var(--err-accent) 28%, transparent);
+    }
+    @keyframes lift501 {
+      0%,100% { transform: translateY(2px); }
+      50% { transform: translateY(-12px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="501">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-501" aria-hidden="true">
+          <div class="stay r"></div>
+          <div class="stay l"></div>
+          <div class="cjib"></div>
+          <div class="jib"></div>
+          <div class="tip"></div>
+          <div class="weight"></div>
+          <div class="mast"></div>
+          <div class="base"></div>
+          <div class="load">
+            <div class="cable"></div>
+            <div class="block"></div>
+          </div>
+        </div>
+      </div>
+      <div class="err-code">501</div>
+      <h1 class="err-title">Not implemented</h1>
+      <p class="err-msg">The server doesn't support the functionality required for this request — it hasn't been built yet.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="/">Back to panel</a>
+        <a class="err-btn" href="javascript:history.back()">Go back</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>504 · Gateway Timeout · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.66 0.12 220); }
+
+    /* 504 — a clock with a racing minute hand: "the request ran out of time" */
+    .glyph-504 .face {
+      position: absolute; inset: 18px;
+      border: 5px solid var(--err-accent);
+      border-radius: 50%;
+      background: color-mix(in oklab, var(--err-accent) 8%, transparent);
+    }
+    .glyph-504 .pivot {
+      position: absolute; left: 50%; top: 50%;
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: var(--err-accent);
+      transform: translate(-50%, -50%);
+      z-index: 2;
+    }
+    .glyph-504 .hand {
+      position: absolute; left: 50%; top: 50%;
+      background: var(--err-accent);
+      border-radius: 3px;
+      transform-origin: 50% 100%;
+    }
+    .glyph-504 .hour { width: 5px; height: 22px; transform: translate(-50%, -100%) rotate(0deg); animation: spin504 9s linear infinite; }
+    .glyph-504 .min  { width: 4px; height: 32px; transform: translate(-50%, -100%) rotate(0deg); animation: spin504 1.6s linear infinite; }
+    @keyframes spin504 {
+      from { transform: translate(-50%, -100%) rotate(0deg); }
+      to   { transform: translate(-50%, -100%) rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="504">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-504" aria-hidden="true">
+          <div class="face"></div>
+          <div class="hand hour"></div>
+          <div class="hand min"></div>
+          <div class="pivot"></div>
+        </div>
+      </div>
+      <div class="err-code">504</div>
+      <h1 class="err-title">Gateway timeout</h1>
+      <p class="err-msg">An upstream server took too long to respond and the request timed out. Please try again in a moment.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="javascript:location.reload()">Try again</a>
+        <a class="err-btn" href="/">Back to panel</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>

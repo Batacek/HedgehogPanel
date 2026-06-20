@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>404 · Not Found · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.66 0.12 235); }
+
+    /* 404 — magnifying glass scanning an empty dashed void: "nothing here" */
+    .glyph-404 .void {
+      position: absolute;
+      inset: 18px;
+      border: 2px dashed rgba(255,255,255,0.18);
+      border-radius: 14px;
+    }
+    .glyph-404 .void::after {
+      content: "?";
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-size: 34px;
+      font-weight: 800;
+      color: rgba(255,255,255,0.10);
+    }
+    .glyph-404 .lens {
+      position: absolute;
+      top: 34px;
+      left: 30px;
+      width: 46px;
+      height: 46px;
+      border: 5px solid var(--err-accent);
+      border-radius: 50%;
+      background: color-mix(in oklab, var(--err-accent) 12%, transparent);
+      animation: scan404 4.5s ease-in-out infinite;
+    }
+    .glyph-404 .lens::after {
+      content: "";
+      position: absolute;
+      bottom: -16px;
+      right: -8px;
+      width: 18px;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--err-accent);
+      transform: rotate(45deg);
+      transform-origin: left center;
+    }
+    @keyframes scan404 {
+      0%, 100% { transform: translate(0, 0); }
+      25%      { transform: translate(34px, 6px); }
+      50%      { transform: translate(20px, 32px); }
+      75%      { transform: translate(-4px, 18px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="404">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+
+      <div class="err-stage">
+        <div class="glyph glyph-404" aria-hidden="true">
+          <div class="void"></div>
+          <div class="lens"></div>
+        </div>
+      </div>
+
+      <div class="err-code">404</div>
+      <h1 class="err-title">Page not found</h1>
+      <p class="err-msg">We looked everywhere, but this page doesn't exist. It may have been moved, renamed, or never existed at all.</p>
+
+      <div class="err-actions">
+        <a class="err-btn primary" href="/">Back to panel</a>
+        <a class="err-btn" href="javascript:history.back()">Go back</a>
+      </div>
+
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>403 · Forbidden · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.62 0.13 12); }
+
+    /* 403 — a no-entry sign: "access denied" */
+    .glyph-403 { animation: pulse403 2.8s ease-in-out infinite; }
+    .glyph-403 .ring {
+      position: absolute; inset: 16px;
+      border: 9px solid var(--err-accent);
+      border-radius: 50%;
+      background: color-mix(in oklab, var(--err-accent) 8%, transparent);
+    }
+    .glyph-403 .bar {
+      position: absolute;
+      top: 56px; left: 16px; right: 16px;
+      height: 9px;
+      background: var(--err-accent);
+      border-radius: 5px;
+      transform: rotate(-45deg);
+    }
+    @keyframes pulse403 {
+      0%,100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.94); opacity: 0.6; }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="403">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-403" aria-hidden="true">
+          <div class="ring"></div>
+          <div class="bar"></div>
+        </div>
+      </div>
+      <div class="err-code">403</div>
+      <h1 class="err-title">Forbidden</h1>
+      <p class="err-msg">You're signed in, but you don't have permission to access this resource. Contact an administrator if you think this is a mistake.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="/">Back to panel</a>
+        <a class="err-btn" href="javascript:history.back()">Go back</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>

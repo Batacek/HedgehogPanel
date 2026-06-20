@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>503 · Service Unavailable · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.64 0.13 145); }
+
+    /* 503 — a power symbol blinking off: "the service is down" */
+    .glyph-503 { animation: pwr503 2.4s ease-in-out infinite; }
+    .glyph-503 .ring {
+      position: absolute; inset: 24px;
+      border: 7px solid var(--err-accent);
+      border-radius: 50%;
+    }
+    .glyph-503 .notch {
+      position: absolute; top: 18px; left: 50%;
+      transform: translateX(-50%);
+      width: 18px; height: 22px;
+      background: var(--panel);
+    }
+    .glyph-503 .stem {
+      position: absolute; top: 22px; left: 50%;
+      transform: translateX(-50%);
+      width: 7px; height: 30px;
+      background: var(--err-accent);
+      border-radius: 4px;
+    }
+    @keyframes pwr503 {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="503">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-503" aria-hidden="true">
+          <div class="ring"></div>
+          <div class="notch"></div>
+          <div class="stem"></div>
+        </div>
+      </div>
+      <div class="err-code">503</div>
+      <h1 class="err-title">Service unavailable</h1>
+      <p class="err-msg">The panel is temporarily offline for maintenance or under heavy load. It will be back shortly.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="javascript:location.reload()">Try again</a>
+        <a class="err-btn" href="/">Back to panel</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>

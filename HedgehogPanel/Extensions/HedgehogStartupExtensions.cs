@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
@@ -292,6 +293,22 @@ public static class HedgehogStartupExtensions
             await next();
         });
 
+        // Archived old frontend lives under wwwroot/old but must never be served
+        app.Use(async (context, next) =>
+        {
+            var p = context.Request.Path;
+            if (p.StartsWithSegments("/old") || p.StartsWithSegments("/html/old"))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                if (!await TryServeErrorPageAsync(context, StatusCodes.Status403Forbidden))
+                {
+                    await context.Response.WriteAsync("Forbidden");
+                }
+                return;
+            }
+            await next();
+        });
+
         app.UseSerilogRequestLogging();
         if (config.Security.Cors.Enabled)
         {
@@ -313,7 +330,7 @@ public static class HedgehogStartupExtensions
                         StatusCodes.Status500InternalServerError,
                         "An error occurred while processing your request.")
                 };
-                
+
                 logger.Error(error!, "Unhandled exception for {Method} {Path} -> {StatusCode}.",
                     context.Request.Method, context.Request.Path, statusCode);
 
@@ -322,9 +339,20 @@ public static class HedgehogStartupExtensions
                 {
                     context.Response.Headers["Retry-After"] = "30";
                 }
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsJsonAsync(new { error = message, status = statusCode });
+
+                // Prefer the styled HTML error page for browser requests; fall back to JSON.
+                if (!await TryServeErrorPageAsync(context, statusCode))
+                {
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new { error = message, status = statusCode });
+                }
             });
+        });
+
+        app.UseStatusCodePages(async statusContext =>
+        {
+            var ctx = statusContext.HttpContext;
+            await TryServeErrorPageAsync(ctx, ctx.Response.StatusCode);
         });
 
         app.UseRateLimiter();
@@ -387,17 +415,6 @@ public static class HedgehogStartupExtensions
                         context.Response.Redirect("/");
                         return;
                     }
-
-                    var isAdmin = context.User.IsInRole("Admin") || context.User.Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == "Admin");
-                    if (!isAdmin)
-                    {
-                        if (path.Equals("/html/components/MainContent/Admin.html", StringComparison.OrdinalIgnoreCase))
-                        {
-                            context.Response.StatusCode = 403;
-                            await context.Response.WriteAsync("Forbidden: Admins only.");
-                            return;
-                        }
-                    }
                 }
             }
 
@@ -456,12 +473,6 @@ public static class HedgehogStartupExtensions
             {
                 var indexPath = Path.Combine(env.ContentRootPath, "Web", "wwwroot", "index.html");
                 var html = await File.ReadAllTextAsync(indexPath);
-                var nonce = ctx.Items["csp-nonce"]?.ToString() ?? "";
-                
-                // Inject nonce into the main script tag and add data attribute for JS access
-                html = html.Replace("<script src=\"/html/js/main.js\"></script>", 
-                    $"<script src=\"/html/js/main.js\" nonce=\"{nonce}\" data-csp-nonce=\"{nonce}\"></script>");
-                
                 return Results.Content(html, "text/html; charset=utf-8");
             }
             return Results.Redirect("/html/login.html");
@@ -493,10 +504,36 @@ public static class HedgehogStartupExtensions
             
             return Results.Content(html, "text/html; charset=utf-8");
         }).AllowAnonymous();
+        
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapGet("/dev/status/{code:int}", (int code) => Results.StatusCode(code)).AllowAnonymous();
+        }
 
         app.MapApi();
 
         return app;
+    }
+
+    /// <summary>
+    /// Writes the static HTML error page for <paramref name="statusCode"/> (from wwwroot/error-pages)
+    /// to the response. Only browser (non-API) requests receive HTML; returns false for API paths or
+    /// when no page exists for the code, so the caller can fall back to a machine-readable response.
+    /// </summary>
+    private static async Task<bool> TryServeErrorPageAsync(HttpContext context, int statusCode)
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+            return false;
+
+        var env = context.RequestServices.GetRequiredService<IWebHostEnvironment>();
+        var pagePath = Path.Combine(env.ContentRootPath, "Web", "wwwroot", "error-pages", $"{statusCode}.html");
+        if (!File.Exists(pagePath))
+            return false;
+
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "text/html; charset=utf-8";
+        await context.Response.SendFileAsync(pagePath);
+        return true;
     }
 
     private static void InitializeSerilog(HedgehogConfig config)

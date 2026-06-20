@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>400 · Bad Request · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.66 0.12 28); }
+
+    /* 400 — a square of data sliced and knocked out of alignment: "malformed / corrupt" */
+    .glyph-400 .blk {
+      position: absolute;
+      left: 25px;
+      width: 70px;
+      height: 34px;
+      border: 3px solid var(--err-accent);
+      background: color-mix(in oklab, var(--err-accent) 10%, transparent);
+    }
+    .glyph-400 .top { top: 26px; border-radius: 12px 12px 0 0; border-bottom: 0; animation: g400a 2.6s steps(1) infinite; }
+    .glyph-400 .bot { top: 60px; border-radius: 0 0 12px 12px; border-top: 0; animation: g400b 2.6s steps(1) infinite; }
+    @keyframes g400a {
+      0%,100% { transform: translateX(0); }
+      8%  { transform: translateX(-10px); }
+      12% { transform: translateX(5px); }
+      55% { transform: translateX(0); }
+    }
+    @keyframes g400b {
+      0%,100% { transform: translateX(0); }
+      10% { transform: translateX(11px); }
+      14% { transform: translateX(-4px); }
+      57% { transform: translateX(0); }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="400">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-400" aria-hidden="true">
+          <div class="blk top"></div>
+          <div class="blk bot"></div>
+        </div>
+      </div>
+      <div class="err-code">400</div>
+      <h1 class="err-title">Bad request</h1>
+      <p class="err-msg">The server couldn't make sense of this request. It may be malformed or missing required information.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="/">Back to panel</a>
+        <a class="err-btn" href="javascript:history.back()">Go back</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>

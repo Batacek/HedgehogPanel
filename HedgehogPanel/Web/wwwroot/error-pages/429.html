@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>429 · Too Many Requests · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.72 0.13 55); }
+
+    /* 429 — relentless signal pings flooding outward: "too many requests" */
+    .glyph-429 .dot {
+      position: absolute; left: 50%; top: 50%;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--err-accent);
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 10px var(--err-accent);
+    }
+    .glyph-429 .ring {
+      position: absolute; left: 50%; top: 50%;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 3px solid var(--err-accent);
+      transform: translate(-50%, -50%) scale(0.4);
+      animation: ping429 2.4s ease-out infinite;
+    }
+    .glyph-429 .ring:nth-child(2) { animation-delay: 0.6s; }
+    .glyph-429 .ring:nth-child(3) { animation-delay: 1.2s; }
+    .glyph-429 .ring:nth-child(4) { animation-delay: 1.8s; }
+    @keyframes ping429 {
+      0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(0.4); }
+      80%  { opacity: 0; }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(7); }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="429">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-429" aria-hidden="true">
+          <div class="ring"></div>
+          <div class="ring"></div>
+          <div class="ring"></div>
+          <div class="ring"></div>
+          <div class="dot"></div>
+        </div>
+      </div>
+      <div class="err-code">429</div>
+      <h1 class="err-title">Too many requests</h1>
+      <p class="err-msg">You're sending requests faster than we can handle. Take a short break and try again in a moment.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="javascript:location.reload()">Try again</a>
+        <a class="err-btn" href="/">Back to panel</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>
