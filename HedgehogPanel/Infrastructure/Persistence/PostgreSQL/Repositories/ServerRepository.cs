@@ -5,6 +5,7 @@ using HedgehogPanel.Application.Repositories;
 using HedgehogPanel.Application.Persistence;
 using HedgehogPanel.Domain.Entities;
 using Npgsql;
+using HedgehogPanel.Infrastructure.Exceptions;
 
 namespace HedgehogPanel.Infrastructure.Persistence.PostgreSQL.Repositories;
 
@@ -25,7 +26,7 @@ public class ServerRepository : IServerRepository
         const string sql = "SELECT uuid, name, hostname, daemon_port, description, created_at FROM servers WHERE uuid = @id LIMIT 1";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@id", guid);
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync());
         if (!await reader.ReadAsync()) return null;
 
         return MapServer(reader);
@@ -42,7 +43,7 @@ public class ServerRepository : IServerRepository
         cmd.Parameters.AddWithValue("@offset", offset);
         
         var list = new List<Server>();
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync());
         while (await reader.ReadAsync())
         {
             list.Add(MapServer(reader));
@@ -63,7 +64,7 @@ public class ServerRepository : IServerRepository
         cmd.Parameters.AddWithValue("@h", server.Hostname);
         cmd.Parameters.AddWithValue("@p", server.DaemonPort);
 
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
     }
 
     public async Task<bool> UpdateAsync(Server server)
@@ -79,7 +80,7 @@ public class ServerRepository : IServerRepository
         cmd.Parameters.AddWithValue("@d", (object?)server.Description ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@id", server.Guid);
 
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
     }
 
     public async Task<bool> DeleteAsync(Guid guid)
@@ -90,7 +91,7 @@ public class ServerRepository : IServerRepository
         const string sql = "DELETE FROM servers WHERE uuid = @id";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@id", guid);
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
     }
 
     public async Task<IReadOnlyList<Server>> ListByOwnerAsync(Guid userGuid, int limit, int offset)
@@ -112,7 +113,7 @@ public class ServerRepository : IServerRepository
         cmd.Parameters.AddWithValue("@offset", offset);
         
         var list = new List<Server>();
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync());
         while (await reader.ReadAsync())
         {
             list.Add(MapServer(reader));
@@ -138,7 +139,7 @@ public class ServerRepository : IServerRepository
         cmd.Parameters.AddWithValue("@offset", offset);
         
         var list = new List<Server>();
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync());
         while (await reader.ReadAsync())
         {
             list.Add(MapServer(reader));
@@ -161,7 +162,7 @@ public class ServerRepository : IServerRepository
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@serverGuid", serverGuid);
         
-        return (string?)await cmd.ExecuteScalarAsync();
+        return (string?)await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteScalarAsync());
     }
 
     public async Task<bool> AssignToUserAsync(Guid serverGuid, Guid userGuid)
@@ -173,7 +174,7 @@ public class ServerRepository : IServerRepository
         const string checkSql = "SELECT EXISTS(SELECT 1 FROM servers WHERE uuid = @serverGuid)";
         await using var checkCmd = new NpgsqlCommand(checkSql, npgsqlConn);
         checkCmd.Parameters.AddWithValue("@serverGuid", serverGuid);
-        var existsObj = await checkCmd.ExecuteScalarAsync();
+        var existsObj = await DbExceptionGuard.ExecuteAsync(() => checkCmd.ExecuteScalarAsync());
         if (!(bool)(existsObj ?? false)) return false;
 
         const string sql = @"
@@ -185,7 +186,7 @@ public class ServerRepository : IServerRepository
         cmd.Parameters.AddWithValue("@serverGuid", serverGuid);
         cmd.Parameters.AddWithValue("@userGuid", userGuid);
         
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
     }
 
     private Server MapServer(NpgsqlDataReader reader)
