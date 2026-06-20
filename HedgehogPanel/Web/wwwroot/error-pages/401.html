@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>401 · Unauthorized · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.66 0.12 262); }
+
+    /* 401 — a closed padlock that rattles: "you need to authenticate" */
+    .glyph-401 { animation: lock401 3.4s ease-in-out infinite; transform-origin: 50% 70%; }
+    .glyph-401 .body {
+      position: absolute;
+      left: 33px; top: 54px;
+      width: 54px; height: 46px;
+      border: 4px solid var(--err-accent);
+      border-radius: 10px;
+      background: color-mix(in oklab, var(--err-accent) 12%, transparent);
+    }
+    .glyph-401 .body::after {
+      content: "";
+      position: absolute;
+      left: 50%; top: 13px;
+      transform: translateX(-50%);
+      width: 8px; height: 16px;
+      background: var(--err-accent);
+      border-radius: 5px;
+    }
+    .glyph-401 .shackle {
+      position: absolute;
+      left: 44px; top: 24px;
+      width: 32px; height: 40px;
+      border: 5px solid var(--err-accent);
+      border-bottom: 0;
+      border-radius: 18px 18px 0 0;
+    }
+    @keyframes lock401 {
+      0%, 88%, 100% { transform: rotate(0); }
+      91% { transform: rotate(-5deg); }
+      94% { transform: rotate(5deg); }
+      97% { transform: rotate(0); }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="401">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-401" aria-hidden="true">
+          <div class="shackle"></div>
+          <div class="body"></div>
+        </div>
+      </div>
+      <div class="err-code">401</div>
+      <h1 class="err-title">Unauthorized</h1>
+      <p class="err-msg">You need to be signed in to view this page. Please authenticate and try again.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="/html/login.html">Sign in</a>
+        <a class="err-btn" href="javascript:history.back()">Go back</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>
