@@ -8,6 +8,7 @@ using HedgehogPanel.Application.Contracts.Logging;
 using HedgehogPanel.Infrastructure.Logging;
 using HedgehogPanel.Infrastructure.Persistence.Store;
 using HedgehogPanel.Infrastructure.Security;
+using HedgehogPanel.Infrastructure.Exceptions;
 using Npgsql;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -121,10 +122,10 @@ public static class AdminEndpoints
                     isAdmin = acc.IsAdmin
                 });
             }
-            catch (PostgresException ex) when (ex.SqlState == "23505") // unique_violation
+            catch (DatabaseConstraintException ex)
             {
-                Logger.Warning(ex, "Unique violation creating user {Username}", req.Username);
-                return Results.Conflict(new { error = "User with the same email already exists." });
+                Logger.Warning(ex, "Constraint violation creating user {Username}", req.Username);
+                return Results.Conflict(new { error = "A user with the same username or email already exists." });
             }
             catch (Exception ex)
             {
