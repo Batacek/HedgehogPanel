@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>502 · Bad Gateway · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.64 0.13 305); }
+
+    /* 502 — two chain links pulled apart: "the connection upstream is broken" */
+    .glyph-502 .link {
+      position: absolute; top: 48px;
+      width: 42px; height: 26px;
+      border: 6px solid var(--err-accent);
+      border-radius: 14px;
+      background: color-mix(in oklab, var(--err-accent) 10%, transparent);
+    }
+    .glyph-502 .l { left: 22px; animation: snapL 2.6s ease-in-out infinite; }
+    .glyph-502 .r { left: 56px; animation: snapR 2.6s ease-in-out infinite; }
+    .glyph-502 .gap {
+      position: absolute; left: 58px; top: 40px;
+      width: 4px; height: 42px;
+      border-left: 3px dashed color-mix(in oklab, var(--err-accent) 60%, transparent);
+    }
+    @keyframes snapL { 0%,100% { transform: translateX(8px); } 50% { transform: translateX(0); } }
+    @keyframes snapR { 0%,100% { transform: translateX(-8px); } 50% { transform: translateX(0); } }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="502">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-502" aria-hidden="true">
+          <div class="link l"></div>
+          <div class="link r"></div>
+          <div class="gap"></div>
+        </div>
+      </div>
+      <div class="err-code">502</div>
+      <h1 class="err-title">Bad gateway</h1>
+      <p class="err-msg">An upstream server returned an invalid response. The link between services is down — please try again soon.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="javascript:location.reload()">Try again</a>
+        <a class="err-btn" href="/">Back to panel</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>
