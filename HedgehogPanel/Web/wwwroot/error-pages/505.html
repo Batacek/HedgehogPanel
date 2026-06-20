@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>505 · HTTP Version Not Supported · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.64 0.13 350); }
+
+    /* 505 — two version chips, the requested one struck out: "this version isn't supported" */
+    .glyph-505 .chip {
+      position: absolute; left: 24px;
+      width: 72px; height: 26px;
+      border-radius: 999px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 13px; letter-spacing: .5px;
+    }
+    .glyph-505 .ok {
+      top: 28px;
+      border: 3px solid var(--err-accent);
+      background: color-mix(in oklab, var(--err-accent) 14%, transparent);
+      color: var(--err-accent);
+    }
+    .glyph-505 .bad {
+      top: 66px;
+      border: 3px solid rgba(255,255,255,0.22);
+      color: rgba(255,255,255,0.45);
+      overflow: hidden;
+    }
+    .glyph-505 .bad::after {
+      content: "";
+      position: absolute; left: 6px; right: 6px; top: 50%;
+      height: 3px;
+      background: var(--err-accent);
+      transform: rotate(-12deg);
+      box-shadow: 0 0 6px var(--err-accent);
+      animation: strike505 2.6s ease-in-out infinite;
+    }
+    @keyframes strike505 {
+      0%,100% { opacity: 0.55; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="505">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-505" aria-hidden="true">
+          <div class="chip ok">HTTP/2</div>
+          <div class="chip bad">HTTP/0.9</div>
+        </div>
+      </div>
+      <div class="err-code">505</div>
+      <h1 class="err-title">HTTP version not supported</h1>
+      <p class="err-msg">The server doesn't support the HTTP protocol version used in this request. Try a newer client.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="/">Back to panel</a>
+        <a class="err-btn" href="javascript:history.back()">Go back</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>
