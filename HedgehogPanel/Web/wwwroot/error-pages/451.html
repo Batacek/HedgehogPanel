@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>451 · Unavailable For Legal Reasons · Hedgehog Panel</title>
+  <link rel="stylesheet" href="/html/error-pages/css/error.css" />
+  <style>
+    :root { --err-accent: oklch(0.72 0.12 75); }
+
+    /* 451 — scales of justice tipping: "blocked for legal reasons" */
+    .glyph-451 .post {
+      position: absolute; left: 50%; top: 30px;
+      transform: translateX(-50%);
+      width: 6px; height: 62px;
+      background: var(--err-accent);
+      border-radius: 3px;
+    }
+    .glyph-451 .base {
+      position: absolute; left: 50%; bottom: 20px;
+      transform: translateX(-50%);
+      width: 46px; height: 6px;
+      background: var(--err-accent);
+      border-radius: 3px;
+    }
+    .glyph-451 .knob {
+      position: absolute; left: 50%; top: 24px;
+      transform: translateX(-50%);
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--err-accent);
+    }
+    .glyph-451 .scale {
+      position: absolute; left: 50%; top: 36px;
+      transform-origin: top center;
+      animation: tilt451 4.5s ease-in-out infinite;
+    }
+    .glyph-451 .beam {
+      position: absolute; left: -42px; top: 0;
+      width: 84px; height: 5px;
+      background: var(--err-accent);
+      border-radius: 3px;
+    }
+    .glyph-451 .pan {
+      position: absolute; top: 5px;
+      width: 30px; height: 15px;
+      border: 4px solid var(--err-accent);
+      border-top: 0;
+      border-radius: 0 0 40px 40px;
+    }
+    .glyph-451 .pan.l { left: -41px; }
+    .glyph-451 .pan.r { left: 11px; }
+    @keyframes tilt451 {
+      0%,100% { transform: translateX(-50%) rotate(7deg); }
+      50% { transform: translateX(-50%) rotate(-7deg); }
+    }
+  </style>
+</head>
+<body>
+  <main class="err-wrap">
+    <section class="err-card" data-screen-label="451">
+      <div class="err-brand">
+        <div class="brand-logo" aria-hidden="true"></div>
+        <div class="brand-title">Hedgehog Panel</div>
+      </div>
+      <div class="err-stage">
+        <div class="glyph glyph-451" aria-hidden="true">
+          <div class="base"></div>
+          <div class="post"></div>
+          <div class="knob"></div>
+          <div class="scale">
+            <div class="beam"></div>
+            <div class="pan l"></div>
+            <div class="pan r"></div>
+          </div>
+        </div>
+      </div>
+      <div class="err-code">451</div>
+      <h1 class="err-title">Unavailable for legal reasons</h1>
+      <p class="err-msg">This resource has been withheld in response to a legal demand and can't be shown.</p>
+      <div class="err-actions">
+        <a class="err-btn primary" href="/">Back to panel</a>
+        <a class="err-btn" href="javascript:history.back()">Go back</a>
+      </div>
+      <div class="err-foot">Hedgehog Panel</div>
+    </section>
+  </main>
+</body>
+</html>
