@@ -19,6 +19,7 @@ using HedgehogPanel.Infrastructure.Configuration;
 using HedgehogPanel.Infrastructure.Daemon;
 using HedgehogPanel.Infrastructure.Persistence.Store;
 using HedgehogPanel.Infrastructure.Security;
+using HedgehogPanel.Infrastructure.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -313,31 +314,41 @@ public static class HedgehogStartupExtensions
         {
             app.UseCors();
         }
-        
-        if (!app.Environment.IsDevelopment())
-        {
-            app.UseExceptionHandler(errApp =>
-            {
-                errApp.Run(async context =>
-                {
-                    var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
-                    logger.Error(error!, "Unhandled exception while processing {Path}.", context.Request.Path);
 
-                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                    if (!await TryServeErrorPageAsync(context, StatusCodes.Status500InternalServerError))
-                    {
-                        context.Response.ContentType = "application/json";
-                        await context.Response.WriteAsJsonAsync(new
-                        {
-                            title = "An error occurred while processing your request.",
-                            status = 500,
-                            traceId = context.TraceIdentifier
-                        });
-                    }
-                });
+        app.UseExceptionHandler(errApp =>
+        {
+            errApp.Run(async context =>
+            {
+                var error = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+
+                var (statusCode, message) = error switch
+                {
+                    DatabaseConnectionException => (
+                        StatusCodes.Status503ServiceUnavailable,
+                        "The service is temporarily unavailable. Please try again later."),
+                    _ => (
+                        StatusCodes.Status500InternalServerError,
+                        "An error occurred while processing your request.")
+                };
+
+                logger.Error(error!, "Unhandled exception for {Method} {Path} -> {StatusCode}.",
+                    context.Request.Method, context.Request.Path, statusCode);
+
+                context.Response.StatusCode = statusCode;
+                if (statusCode == StatusCodes.Status503ServiceUnavailable)
+                {
+                    context.Response.Headers["Retry-After"] = "30";
+                }
+
+                // Prefer the styled HTML error page for browser requests; fall back to JSON.
+                if (!await TryServeErrorPageAsync(context, statusCode))
+                {
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new { error = message, status = statusCode });
+                }
             });
-        }
-        
+        });
+
         app.UseStatusCodePages(async statusContext =>
         {
             var ctx = statusContext.HttpContext;

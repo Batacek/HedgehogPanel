@@ -7,6 +7,7 @@ using HedgehogPanel.Application.Repositories;
 using HedgehogPanel.Application.Persistence;
 using HedgehogPanel.Domain.Entities;
 using Npgsql;
+using HedgehogPanel.Infrastructure.Exceptions;
 
 namespace HedgehogPanel.Infrastructure.Persistence.PostgreSQL.Repositories;
 
@@ -34,7 +35,7 @@ public class AccountRepository : IAccountRepository
         await using (var cmd = new NpgsqlCommand(sql, npgsqlConn))
         {
             cmd.Parameters.AddWithValue("@id", guid);
-            await using (var reader = await cmd.ExecuteReaderAsync())
+            await using (var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync()))
             {
                 if (!await reader.ReadAsync()) return null;
                 
@@ -67,7 +68,7 @@ public class AccountRepository : IAccountRepository
         await using (var cmd = new NpgsqlCommand(sql, npgsqlConn))
         {
             cmd.Parameters.AddWithValue("@u", username);
-            await using (var reader = await cmd.ExecuteReaderAsync())
+            await using (var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync()))
             {
                 if (!await reader.ReadAsync()) return null;
                 
@@ -99,7 +100,7 @@ public class AccountRepository : IAccountRepository
         var accounts = new List<Account>();
         var userDatas = new List<(Guid guid, string uname, string email, string? first, string? middle, string? last, uint xmin)>();
         
-        await using (var reader = await cmd.ExecuteReaderAsync())
+        await using (var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync()))
         {
             while (await reader.ReadAsync())
             {
@@ -140,7 +141,7 @@ public class AccountRepository : IAccountRepository
          cmd.Parameters.AddWithValue("@m", (object?)account.MiddleName ?? DBNull.Value);
          cmd.Parameters.AddWithValue("@l", (object?)account.LastName ?? DBNull.Value);
 
-         return await cmd.ExecuteNonQueryAsync() > 0;
+         return await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
     }
 
     public async Task<bool> UpdateAsync(Account account, string? newPasswordHash = null)
@@ -164,7 +165,7 @@ public class AccountRepository : IAccountRepository
         if (newPasswordHash != null) cmd.Parameters.AddWithValue("@p", newPasswordHash);
         if (account.RowVersion > 0) cmd.Parameters.AddWithValue("@v", (int)account.RowVersion);
 
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
     }
 
     public async Task<bool> DeleteAsync(Guid guid)
@@ -175,7 +176,7 @@ public class AccountRepository : IAccountRepository
         const string sql = "DELETE FROM users WHERE uuid = @id";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@id", guid);
-        return await cmd.ExecuteNonQueryAsync() > 0;
+        return await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
     }
     
     // Pomocná metoda pro autentizaci, protože hashování je v DB
@@ -199,7 +200,7 @@ public class AccountRepository : IAccountRepository
         {
             cmd.Parameters.AddWithValue("@u", username);
             cmd.Parameters.AddWithValue("@p", password);
-            await using (var reader = await cmd.ExecuteReaderAsync())
+            await using (var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync()))
             {
                 if (!await reader.ReadAsync()) return null;
 
@@ -227,7 +228,7 @@ public class AccountRepository : IAccountRepository
         await using var cmd = new NpgsqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@id", userGuid);
         var groups = new List<Group>();
-        await using (var reader = await cmd.ExecuteReaderAsync())
+        await using (var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync()))
         {
             while (await reader.ReadAsync())
             {
