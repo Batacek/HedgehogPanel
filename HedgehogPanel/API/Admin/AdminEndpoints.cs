@@ -62,7 +62,7 @@ public static class AdminEndpoints
                 firstName = u.FirstName,
                 middleName = u.MiddleName,
                 lastName = u.LastName,
-                isAdmin = u.IsAdmin,
+                isAdmin = u.IsInGroup("admin"),
                 rowVersion = u.RowVersion,
                 highestPriorityGroup = userGroupsDict.TryGetValue(u.Guid, out var grp) ? grp : null
             }));
@@ -120,7 +120,7 @@ public static class AdminEndpoints
                     username = acc.Username,
                     email = acc.Email,
                     name = acc.FullName,
-                    isAdmin = acc.IsAdmin
+                    isAdmin = acc.IsInGroup("admin")
                 });
             }
             catch (DatabaseConstraintException ex)
