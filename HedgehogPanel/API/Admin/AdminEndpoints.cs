@@ -9,6 +9,7 @@ using HedgehogPanel.Infrastructure.Logging;
 using HedgehogPanel.Infrastructure.Persistence.Store;
 using HedgehogPanel.Infrastructure.Security;
 using HedgehogPanel.Infrastructure.Exceptions;
+using HedgehogPanel.Domain.Exceptions;
 using Npgsql;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -247,6 +248,102 @@ public static class AdminEndpoints
             return ok ? Results.Ok(new { success = true }) : Results.NotFound(new { error = "Server not found." });
         }).RequireAuthorization();;
 
+        // Groups
+        group.MapGet("/groups", async (IGroupService groupService) =>
+        {
+            var groups = await groupService.ListGroupsAsync(500, 0);
+            return Results.Ok(groups.Select(g => new
+            {
+                id = g.Guid,
+                name = g.Name,
+                description = g.Description
+            }));
+        }).RequireAuthorization();
+
+        group.MapPost("/groups", async (CreateGroupRequest req, IGroupService groupService) =>
+        {
+            if (req is null || string.IsNullOrWhiteSpace(req.Name))
+                return Results.BadRequest(new { error = "Group name is required." });
+
+            var name = req.Name.Trim();
+            if (name.Length > 64)
+                return Results.BadRequest(new { error = "Group name must not exceed 64 characters." });
+
+            try
+            {
+                var created = await groupService.CreateGroupAsync(name,
+                    string.IsNullOrWhiteSpace(req.Description) ? null : req.Description!.Trim());
+                return Results.Ok(new { id = created.Guid, name = created.Name, description = created.Description });
+            }
+            catch (DuplicateEntityException)
+            {
+                return Results.Conflict(new { error = "A group with the same name already exists." });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to create group {Name}", name);
+                return Results.BadRequest(new { error = "Failed to create group." });
+            }
+        }).RequireAuthorization();
+
+        group.MapDelete("/groups/{name}", async (string name, IGroupService groupService) =>
+        {
+            if (string.IsNullOrWhiteSpace(name)) return Results.BadRequest(new { error = "Group name required." });
+            if (string.Equals(name, "admin", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new { error = "The 'admin' group cannot be deleted." });
+
+            var ok = await groupService.DeleteGroupByNameAsync(name.Trim());
+            return ok ? Results.Ok(new { success = true }) : Results.NotFound(new { error = "Group not found." });
+        }).RequireAuthorization();
+
+        group.MapGet("/groups/{name}/members", async (string name, IGroupService groupService) =>
+        {
+            if (string.IsNullOrWhiteSpace(name)) return Results.BadRequest(new { error = "Group name required." });
+
+            var members = await groupService.GetMembersByGroupNameAsync(name.Trim());
+            if (members is null) return Results.NotFound(new { error = "Group not found." });
+
+            return Results.Ok(members.Select(m => new
+            {
+                userId = m.UserGuid,
+                username = m.Username,
+                email = m.Email,
+                priority = m.Priority
+            }));
+        }).RequireAuthorization();
+
+        group.MapPost("/groups/{name}/members", async (string name, AddGroupMemberRequest req, IGroupService groupService) =>
+        {
+            if (string.IsNullOrWhiteSpace(name)) return Results.BadRequest(new { error = "Group name required." });
+            if (req is null || string.IsNullOrWhiteSpace(req.Username))
+                return Results.BadRequest(new { error = "Username is required." });
+
+            var result = await groupService.AddMemberAsync(name.Trim(), req.Username.Trim(), req.Priority);
+            return result switch
+            {
+                GroupMemberOperationResult.Success => Results.Ok(new { success = true }),
+                GroupMemberOperationResult.GroupNotFound => Results.NotFound(new { error = "Group not found." }),
+                GroupMemberOperationResult.UserNotFound => Results.NotFound(new { error = "User not found." }),
+                GroupMemberOperationResult.InvalidPriority => Results.BadRequest(new { error = "Priority must be between 0 and 255." }),
+                _ => Results.BadRequest(new { error = "Failed to add member." })
+            };
+        }).RequireAuthorization();
+
+        group.MapDelete("/groups/{name}/members/{username}", async (string name, string username, IGroupService groupService) =>
+        {
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(username))
+                return Results.BadRequest(new { error = "Group name and username are required." });
+
+            var result = await groupService.RemoveMemberAsync(name.Trim(), username.Trim());
+            return result switch
+            {
+                GroupMemberOperationResult.Success => Results.Ok(new { success = true }),
+                GroupMemberOperationResult.GroupNotFound => Results.NotFound(new { error = "Group not found." }),
+                GroupMemberOperationResult.UserNotFound => Results.NotFound(new { error = "User not found." }),
+                _ => Results.BadRequest(new { error = "Failed to remove member." })
+            };
+        }).RequireAuthorization();
+
         Logger.Information("Admin endpoints mapped.");
         return endpoints;
     }
@@ -254,4 +351,6 @@ public static class AdminEndpoints
     public record CreateUserRequest(string Username, string Email, string Password, string? FirstName, string? MiddleName, string? LastName);
     public record CreateServerRequest(string Name, string? Description, string? OwnerUsername);
     public record UnlockUserRequest(string ClientIp);
+    public record CreateGroupRequest(string Name, string? Description);
+    public record AddGroupMemberRequest(string Username, int Priority);
 }
