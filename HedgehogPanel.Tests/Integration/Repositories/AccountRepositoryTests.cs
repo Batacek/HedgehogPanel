@@ -290,7 +290,7 @@ public class AccountRepositoryTests
     }
 
     [Fact]
-    public async Task GetByUsernameAsync_ForUserInAdminGroup_PopulatesGroupsAndIsAdmin()
+    public async Task GetByUsernameAsync_ForUserInAdminGroup_PopulatesGroupMembership()
     {
         // Arrange
         await _fixture.CleanDatabaseAsync();
@@ -322,7 +322,7 @@ public class AccountRepositoryTests
         // Assert
         Assert.NotNull(loaded);
         Assert.Contains(loaded.Groups, g => g.Name == "admin");
-        Assert.True(loaded.IsAdmin);
+        Assert.True(loaded.IsInGroup("admin"));
     }
 
     [Fact]
