@@ -146,6 +146,44 @@ let PERMISSIONS = [];
 let PERMISSION_GRANTS = {};
 let CURRENT_USER = null;
 
+/* Read the readable CSRF cookie the backend issues to every visitor. */
+window.__hh_csrf = () =>
+  (document.cookie.split("; ").find(r => r.startsWith("XSRF-TOKEN=")) || "=").split("=").slice(1).join("=");
+
+/* fetch() wrapper that always carries credentials + the CSRF token (JSON body by default). */
+window.__hh_api = (url, opts = {}) => {
+  const headers = Object.assign({ "X-CSRF-Token": window.__hh_csrf() }, opts.headers || {});
+  if (opts.body != null && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  return fetch(url, Object.assign({ credentials: "same-origin" }, opts, { headers }));
+};
+
+/* Load groups (admin only) together with their members from the backend. */
+window.__hh_loadGroups = async () => {
+  const res = await window.__hh_api("/api/admin/groups").catch(() => null);
+  if (!res || !res.ok) return [];
+  const raw = await res.json();
+  return Promise.all(raw.map(async g => {
+    let members = [];
+    const mr = await window.__hh_api(`/api/admin/groups/${encodeURIComponent(g.name)}/members`).catch(() => null);
+    if (mr && mr.ok) {
+      const rawMembers = await mr.json();
+      members = rawMembers.map(m => ({
+        userId: m.userId,
+        username: m.username,
+        email: m.email || "",
+        priority: m.priority
+      }));
+    }
+    return {
+      uuid: g.id,
+      name: g.name,
+      description: g.description || "",
+      priority: 0,
+      members
+    };
+  }));
+};
+
 /* Fetch all panel data from the Hedgehog Panel backend API. */
 window.__hh_load_data = async () => {
   const csrfToken = (document.cookie.split("; ").find(r => r.startsWith("XSRF-TOKEN=")) || "=").split("=").slice(1).join("=");
@@ -191,6 +229,11 @@ window.__hh_load_data = async () => {
       group: CURRENT_USER.isAdmin ? "admin" : "default",
       createdAt: new Date()
     }];
+  }
+
+  /* /api/admin/groups (admin only) */
+  if (CURRENT_USER && CURRENT_USER.isAdmin) {
+    GROUPS = await window.__hh_loadGroups();
   }
 
   /* /api/servers */
