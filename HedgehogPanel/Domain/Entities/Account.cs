@@ -18,7 +18,11 @@ public class Account
     public uint RowVersion { get; set; }
 
     public string FullName => string.Join(" ", new[] { FirstName, MiddleName, LastName }.Where(s => !string.IsNullOrWhiteSpace(s)));
-    public bool IsAdmin => Groups?.Any(g => string.Equals(g.Name, "admin", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+    /// <summary>True if the account belongs to the named group (case-insensitive). Group membership is
+    /// the source of truth for authorization; permissions will be layered on top later.</summary>
+    public bool IsInGroup(string groupName) =>
+        Groups?.Any(g => string.Equals(g.Name, groupName, StringComparison.OrdinalIgnoreCase)) ?? false;
 
     public Account(Guid guid, string username, string email, bool isActive = true, byte? localId = null, string? firstName = null, string? middleName = null, string? lastName = null, Group[]? groups = null, uint rowVersion = 0)
     {
