@@ -112,8 +112,10 @@ public static class HedgehogStartupExtensions
         builder.Services.AddSingleton<IAccountRepository, AccountRepository>();
         builder.Services.AddSingleton<IServerRepository, ServerRepository>();
         builder.Services.AddSingleton<INodeRepository, NodeRepository>();
+        builder.Services.AddSingleton<IGroupRepository, GroupRepository>();
         builder.Services.AddSingleton<IAccountService, AccountService>();
         builder.Services.AddSingleton<IServerService, ServerService>();
+        builder.Services.AddSingleton<IGroupService, GroupService>();
 
         // gRPC client factory for daemon communication
         builder.Services.AddSingleton<IDaemonGrpcClientFactory, DaemonGrpcClientFactory>();
