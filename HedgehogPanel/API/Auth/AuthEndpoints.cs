@@ -76,8 +76,6 @@ public static class AuthEndpoints
                 var account = await accountService.AuthenticateAsync(username, password);
                 if (account == null)
                 {
-                    await lockoutSvc.RecordFailedAttemptAsync(username, ip);
-                    Logger.Warning("Authentication failed for user {Username} from {IP}.", username, ip);
                     throw new UnauthorizedAccessException("Invalid username or password.");
                 }
                 
