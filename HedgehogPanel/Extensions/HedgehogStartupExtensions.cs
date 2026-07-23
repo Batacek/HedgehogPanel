@@ -182,6 +182,7 @@ public static class HedgehogStartupExtensions
         });
 
         builder.Services.AddMemoryCache();
+        builder.Services.AddSingleton<ILockoutSettings, LockoutSettings>();
         builder.Services.AddScoped<IAccountLockoutService, AccountLockoutService>();
 
         logger.Information("Setting up authentication and authorization...");
