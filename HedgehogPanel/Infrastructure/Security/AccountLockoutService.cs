@@ -12,18 +12,21 @@ public class AccountLockoutService : IAccountLockoutService
 {
     private static readonly ILoggerService Logger = HedgehogLogger.ForContext(typeof(AccountLockoutService));
 
-    private const int MaxFailedAttempts = 5;
     private static readonly TimeSpan FailedAttemptsWindow = TimeSpan.FromMinutes(15);
-    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(5);
+    private const int MaxGlobalFailedAttempts = 15;
+    private static readonly TimeSpan GlobalLockoutDuration = TimeSpan.FromMinutes(15);
 
     private readonly IMemoryCache _cache;
+    private readonly ILockoutSettings _settings;
 
-    public AccountLockoutService(IMemoryCache cache)
+    public AccountLockoutService(IMemoryCache cache, ILockoutSettings settings)
     {
         _cache = cache;
+        _settings = settings;
     }
 
-    private static string Key(string username, string clientIp) => $"lockout:{username?.ToLowerInvariant()}|{clientIp}";
+    private static string PerIpKey(string username, string clientIp) => $"lockout:{username?.ToLowerInvariant()}|{clientIp}";
+    private static string GlobalKey(string username) => $"lockout-global:{username?.ToLowerInvariant()}";
 
     private class LockoutInfo
     {
@@ -33,27 +36,80 @@ public class AccountLockoutService : IAccountLockoutService
 
     public Task<bool> IsAccountLockedAsync(string username, string clientIp)
     {
-        var info = GetInfo(username, clientIp);
-        CleanupWindow(info);
-        var locked = info.LockedUntil != null && info.LockedUntil > DateTimeOffset.UtcNow;
+        var lockedUntil = MaxRemainingLockout(username, clientIp);
+        var locked = lockedUntil != null && lockedUntil > DateTimeOffset.UtcNow;
         if (locked)
         {
-            var remaining = info.LockedUntil!.Value - DateTimeOffset.UtcNow;
-            Logger.Information("Account {Username} from {IP} is locked. Remaining {Remaining}.", username, clientIp, remaining);
+            Logger.Information("Account {Username} from {IP} is locked. Remaining {Remaining}.", username, clientIp, lockedUntil!.Value - DateTimeOffset.UtcNow);
         }
         return Task.FromResult(locked);
     }
 
     public Task RecordFailedAttemptAsync(string username, string clientIp)
     {
-        var info = GetInfo(username, clientIp);
+        RecordInBucket(PerIpKey(username, clientIp), _settings.MaxFailedAttempts, _settings.LockoutDuration, username, clientIp, isGlobal: false);
+        RecordInBucket(GlobalKey(username), MaxGlobalFailedAttempts, GlobalLockoutDuration, username, clientIp, isGlobal: true);
+        return Task.CompletedTask;
+    }
+
+    public Task ResetFailedAttemptsAsync(string username, string clientIp)
+    {
+        _cache.Remove(PerIpKey(username, clientIp));
+        Logger.Information("Reset lockout counters for {Username} from {IP} after successful login.", username, clientIp);
+        return Task.CompletedTask;
+    }
+
+    public Task<TimeSpan?> GetLockoutTimeRemainingAsync(string username, string clientIp)
+    {
+        var until = MaxRemainingLockout(username, clientIp);
+        if (until is { } value && value > DateTimeOffset.UtcNow)
+        {
+            return Task.FromResult<TimeSpan?>(value - DateTimeOffset.UtcNow);
+        }
+        return Task.FromResult<TimeSpan?>(null);
+    }
+
+    public Task UnlockAccountAsync(string username, string clientIp)
+    {
+        _cache.Remove(PerIpKey(username, clientIp));
+        _cache.Remove(GlobalKey(username));
+        Logger.Information("Manually unlocked account {Username} from {IP} by admin.", username, clientIp);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Returns the later of the per-IP and account-global lockout expiries, or null if neither is locked.</summary>
+    private DateTimeOffset? MaxRemainingLockout(string username, string clientIp)
+    {
+        var perIp = LockedUntil(PerIpKey(username, clientIp));
+        var global = LockedUntil(GlobalKey(username));
+        if (perIp == null) return global;
+        if (global == null) return perIp;
+        return perIp > global ? perIp : global;
+    }
+
+    private DateTimeOffset? LockedUntil(string key)
+    {
+        var info = GetInfo(key);
+        CleanupWindow(info);
+        if (info.LockedUntil is { } until && until > DateTimeOffset.UtcNow)
+        {
+            return until;
+        }
+        return null;
+    }
+
+    private void RecordInBucket(string key, int threshold, TimeSpan lockoutDuration, string username, string clientIp, bool isGlobal)
+    {
+        var info = GetInfo(key);
         CleanupWindow(info);
         info.FailedTimestamps.Add(DateTimeOffset.UtcNow);
-        Logger.Warning("Failed login attempt for {Username} from {IP}. Count (last {Window}): {Count}.", username, clientIp, FailedAttemptsWindow, info.FailedTimestamps.Count);
-        if (info.FailedTimestamps.Count >= MaxFailedAttempts)
+        var scope = isGlobal ? "account-global" : "per-IP";
+        Logger.Warning("Failed login attempt for {Username} from {IP} ({Scope}). Count (last {Window}): {Count}.", username, clientIp, scope, FailedAttemptsWindow, info.FailedTimestamps.Count);
+
+        if (info.FailedTimestamps.Count >= threshold && info.LockedUntil == null)
         {
-            info.LockedUntil = DateTimeOffset.UtcNow.Add(LockoutDuration);
-            Logger.Warning("Account {Username} from {IP} locked until {LockedUntil} after {Count} failed attempts.", username, clientIp, info.LockedUntil, info.FailedTimestamps.Count);
+            info.LockedUntil = DateTimeOffset.UtcNow.Add(lockoutDuration);
+            Logger.Warning("Account {Username} locked until {LockedUntil} after {Count} failed attempts ({Scope}).", username, info.LockedUntil, info.FailedTimestamps.Count, scope);
 
             _ = Logger.LogSecurityEventAsync(new SecurityEvent(
                 "Security.AccountLockout",
@@ -62,57 +118,24 @@ public class AccountLockoutService : IAccountLockoutService
                 clientIp,
                 null,
                 true,
-                new { username, threshold = MaxFailedAttempts, signal = "Too many failed attempts" }
+                new { username, threshold, scope, signal = "Too many failed attempts" }
             ));
         }
-        SetInfo(username, clientIp, info);
-        return Task.CompletedTask;
+        SetInfo(key, info);
     }
 
-    public Task ResetFailedAttemptsAsync(string username, string clientIp)
+    private LockoutInfo GetInfo(string key)
     {
-        var key = Key(username, clientIp);
-        _cache.Remove(key);
-        Logger.Information("Reset lockout counters for {Username} from {IP} after successful login.", username, clientIp);
-        return Task.CompletedTask;
-    }
-
-    public Task<TimeSpan?> GetLockoutTimeRemainingAsync(string username, string clientIp)
-    {
-        var info = GetInfo(username, clientIp);
-        CleanupWindow(info);
-        if (info.LockedUntil is { } until && until > DateTimeOffset.UtcNow)
-        {
-            return Task.FromResult<TimeSpan?>(until - DateTimeOffset.UtcNow);
-        }
-        return Task.FromResult<TimeSpan?>(null);
-    }
-
-    public Task UnlockAccountAsync(string username, string clientIp)
-    {
-        var key = Key(username, clientIp);
-        _cache.Remove(key);
-        Logger.Information("Manually unlocked account {Username} from {IP} by admin.", username, clientIp);
-        return Task.CompletedTask;
-    }
-
-    private LockoutInfo GetInfo(string username, string clientIp)
-    {
-        var key = Key(username, clientIp);
         if (!_cache.TryGetValue(key, out LockoutInfo? info) || info is null)
         {
             info = new LockoutInfo();
-            var options = new MemoryCacheEntryOptions()
-                .SetSlidingExpiration(TimeSpan.FromMinutes(30))
-                .SetAbsoluteExpiration(TimeSpan.FromHours(6));
-            _cache.Set(key, info, options);
+            SetInfo(key, info);
         }
         return info;
     }
 
-    private void SetInfo(string username, string clientIp, LockoutInfo info)
+    private void SetInfo(string key, LockoutInfo info)
     {
-        var key = Key(username, clientIp);
         var options = new MemoryCacheEntryOptions()
             .SetSlidingExpiration(TimeSpan.FromMinutes(30))
             .SetAbsoluteExpiration(TimeSpan.FromHours(6));
