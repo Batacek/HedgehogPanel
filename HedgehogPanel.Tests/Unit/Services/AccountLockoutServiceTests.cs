@@ -15,7 +15,7 @@ public class AccountLockoutServiceTests
     public AccountLockoutServiceTests()
     {
         _mockCache = new Mock<IMemoryCache>();
-        _service = new AccountLockoutService(_mockCache.Object);
+        _service = new AccountLockoutService(_mockCache.Object, new LockoutSettings());
     }
 
     [Fact]
@@ -158,13 +158,13 @@ public class AccountLockoutServiceTests
     }
 
     [Fact]
-    public async Task UnlockAccountAsync_RemovesCacheEntry()
+    public async Task UnlockAccountAsync_RemovesBothPerIpAndGlobalEntries()
     {
         // Arrange & Act
         await _service.UnlockAccountAsync("testuser", "127.0.0.1");
 
-        // Assert
-        _mockCache.Verify(c => c.Remove(It.IsAny<object>()), Times.Once);
+        // Assert - admin unlock clears the per-IP counter and the account-global counter.
+        _mockCache.Verify(c => c.Remove(It.IsAny<object>()), Times.Exactly(2));
     }
 
     [Fact]
@@ -191,6 +191,66 @@ public class AccountLockoutServiceTests
         // Assert - should not be locked because old attempts are cleaned up
         var lockedUntil = lockoutInfo.GetType().GetProperty("LockedUntil")!.GetValue(lockoutInfo) as DateTimeOffset?;
         Assert.Null(lockedUntil);
+    }
+
+    // ----- Account-global throttle (exercised against a real in-memory cache) -----
+
+    private static AccountLockoutService RealService() =>
+        new(new MemoryCache(new MemoryCacheOptions()), new LockoutSettings());
+
+    [Fact]
+    public async Task PerIp_FourFailures_DoesNotLockThatClient()
+    {
+        var service = RealService();
+        for (var i = 0; i < 4; i++)
+        {
+            await service.RecordFailedAttemptAsync("targetuser", "10.0.0.1");
+        }
+
+        Assert.False(await service.IsAccountLockedAsync("targetuser", "10.0.0.1"));
+    }
+
+    [Fact]
+    public async Task PerIp_FifthFailure_LocksOnlyThatClient()
+    {
+        var service = RealService();
+        for (var i = 0; i < 5; i++)
+        {
+            await service.RecordFailedAttemptAsync("targetuser", "10.0.0.1");
+        }
+
+        // The offending client is locked, but the account-global ceiling (15) is not yet reached,
+        // so a different source IP still gets a fresh budget.
+        Assert.True(await service.IsAccountLockedAsync("targetuser", "10.0.0.1"));
+        Assert.False(await service.IsAccountLockedAsync("targetuser", "10.0.0.2"));
+    }
+
+    [Fact]
+    public async Task AccountGlobal_ManyDistinctIps_LockEvenFromAFreshIp()
+    {
+        var service = RealService();
+
+        // 15 single failures, each from a different IP - none trips the per-IP limit (5),
+        // but together they reach the account-global ceiling (15).
+        for (var i = 0; i < 15; i++)
+        {
+            await service.RecordFailedAttemptAsync("targetuser", $"192.0.2.{i}");
+        }
+
+        // A source IP that never failed is throttled because the account is globally locked.
+        Assert.True(await service.IsAccountLockedAsync("targetuser", "203.0.113.99"));
+    }
+
+    [Fact]
+    public async Task AccountGlobal_DoesNotAffectOtherAccounts()
+    {
+        var service = RealService();
+        for (var i = 0; i < 15; i++)
+        {
+            await service.RecordFailedAttemptAsync("targetuser", $"192.0.2.{i}");
+        }
+
+        Assert.False(await service.IsAccountLockedAsync("bystander", "203.0.113.99"));
     }
 
     private object CreateLockoutInfo()

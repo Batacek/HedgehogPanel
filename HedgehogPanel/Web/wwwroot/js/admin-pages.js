@@ -781,12 +781,39 @@ const AdminSettingsPage = ({
   const [palette, setPalette] = React.useState(defaults.palette);
   const [defaultLang, setDefaultLang] = React.useState(defaults.lang);
   const [saved, setSaved] = React.useState(false);
-  const save = e => {
+  const [maxFails, setMaxFails] = React.useState("5");
+  const [lockMinutes, setLockMinutes] = React.useState("5");
+
+  React.useEffect(() => {
+    fetch("/api/admin/settings/lockout", {
+      credentials: "same-origin"
+    }).then(r => r.ok ? r.json() : null).then(d => {
+      if (!d) return;
+      setMaxFails(String(d.maxFailedAttempts));
+      setLockMinutes(String(d.lockoutMinutes));
+    }).catch(() => {});
+  }, []);
+  const save = async e => {
     e.preventDefault();
     onChangeDefaults?.({
       palette,
       lang: defaultLang
     });
+    try {
+      const csrf = (document.cookie.split("; ").find(r => r.startsWith("XSRF-TOKEN=")) || "=").split("=").slice(1).join("=");
+      await fetch("/api/admin/settings/lockout", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrf
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          maxFailedAttempts: parseInt(maxFails, 10) || 5,
+          lockoutMinutes: parseInt(lockMinutes, 10) || 5
+        })
+      });
+    } catch (err) {/* ignore network error; local defaults are still applied */}
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -925,12 +952,20 @@ const AdminSettingsPage = ({
     className: "field"
   }, /*#__PURE__*/React.createElement("label", null, t("admin.settings.max_fails")), /*#__PURE__*/React.createElement("input", {
     className: "input",
-    defaultValue: "5"
+    type: "number",
+    min: "1",
+    max: "100",
+    value: maxFails,
+    onChange: e => setMaxFails(e.target.value)
   })), /*#__PURE__*/React.createElement("div", {
     className: "field"
   }, /*#__PURE__*/React.createElement("label", null, t("admin.settings.lock_minutes")), /*#__PURE__*/React.createElement("input", {
     className: "input",
-    defaultValue: "15"
+    type: "number",
+    min: "1",
+    max: "1440",
+    value: lockMinutes,
+    onChange: e => setLockMinutes(e.target.value)
   })))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",

@@ -248,6 +248,43 @@ public static class AdminEndpoints
             return ok ? Results.Ok(new { success = true }) : Results.NotFound(new { error = "Server not found." });
         }).RequireAuthorization();;
 
+        // Account lockout policy (runtime-adjustable via panel settings)
+        group.MapGet("/settings/lockout", (ILockoutSettings settings) =>
+            Results.Ok(new
+            {
+                maxFailedAttempts = settings.MaxFailedAttempts,
+                lockoutMinutes = (int)settings.LockoutDuration.TotalMinutes
+            })).RequireAuthorization();
+
+        group.MapPut("/settings/lockout", async (HttpContext ctx, UpdateLockoutSettingsRequest req, ILockoutSettings settings) =>
+        {
+            if (req is null) return Results.BadRequest(new { error = "Request body is required." });
+            if (req.MaxFailedAttempts < 1 || req.MaxFailedAttempts > 100)
+                return Results.BadRequest(new { error = "Max failed attempts must be between 1 and 100." });
+            if (req.LockoutMinutes < 1 || req.LockoutMinutes > 1440)
+                return Results.BadRequest(new { error = "Lockout duration must be between 1 and 1440 minutes." });
+
+            settings.Update(req.MaxFailedAttempts, req.LockoutMinutes);
+
+            var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var actorGuidClaim = ctx.User?.FindFirst("guid")?.Value;
+            Guid? actorGuid = actorGuidClaim != null ? Guid.Parse(actorGuidClaim) : null;
+            await Logger.LogSecurityEventAsync(new SecurityEvent(
+                "Security.LockoutSettingsUpdated",
+                null,
+                actorGuid,
+                ip,
+                ctx.Request.Headers["User-Agent"],
+                true,
+                new { req.MaxFailedAttempts, req.LockoutMinutes }));
+
+            return Results.Ok(new
+            {
+                maxFailedAttempts = settings.MaxFailedAttempts,
+                lockoutMinutes = (int)settings.LockoutDuration.TotalMinutes
+            });
+        }).RequireAuthorization();
+
         // Groups
         group.MapGet("/groups", async (IGroupService groupService) =>
         {
@@ -351,6 +388,10 @@ public static class AdminEndpoints
     public record CreateUserRequest(string Username, string Email, string Password, string? FirstName, string? MiddleName, string? LastName);
     public record CreateServerRequest(string Name, string? Description, string? OwnerUsername);
     public record UnlockUserRequest(string ClientIp);
+    public record CreateUserRequest(string Username, string Email, string Password, string? FirstName, string? MiddleName, string? LastName);
+    public record CreateServerRequest(string Name, string? Description, string? OwnerUsername);
+    public record UnlockUserRequest(string ClientIp);
+    public record UpdateLockoutSettingsRequest(int MaxFailedAttempts, int LockoutMinutes);
     public record CreateGroupRequest(string Name, string? Description);
     public record AddGroupMemberRequest(string Username, int Priority);
 }
