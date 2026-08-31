@@ -199,132 +199,290 @@ const AdminUsersPage = () => {
 
 const AdminGroupsPage = () => {
   const t = useT();
-  return /*#__PURE__*/React.createElement("div", {
+  const h = React.createElement;
+  const [groups, setGroups] = React.useState(() => Array.isArray(window.GROUPS) ? window.GROUPS : []);
+  const [note, setNote] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+
+  const flash = (tone, text) => {
+    setNote({
+      tone,
+      text
+    });
+    setTimeout(() => setNote(null), 3500);
+  };
+
+  /* Reload groups (+ members) from the backend and publish them globally. */
+  const reload = React.useCallback(async () => {
+    if (typeof window.__hh_loadGroups !== "function") return;
+    const fresh = await window.__hh_loadGroups();
+    window.GROUPS = fresh;
+    setGroups(fresh);
+  }, []);
+  React.useEffect(() => {
+    reload();
+  }, [reload]);
+
+  /* Runs an API mutation, then refreshes and flashes a success/error note. */
+  const mutate = async (request, okText) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await request();
+      if (res && res.ok) {
+        await reload();
+        flash("success", okText);
+        return true;
+      }
+      const data = res ? await res.json().catch(() => ({})) : {};
+      flash("danger", data.error || t("admin.groups.action_failed", "The action failed."));
+      return false;
+    } catch (err) {
+      flash("danger", t("admin.groups.action_failed", "The action failed."));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createGroup = async e => {
+    e.preventDefault();
+    const form = e.target;
+    const fd = new FormData(form);
+    const name = (fd.get("name") || "").trim();
+    const description = (fd.get("description") || "").trim();
+    if (!name) return;
+    const ok = await mutate(() => window.__hh_api("/api/admin/groups", {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        description
+      })
+    }), t("admin.groups.created", "Group created."));
+    if (ok) form.reset();
+  };
+
+  const deleteGroup = name => {
+    if (!window.confirm(t("admin.groups.delete_confirm", "Delete this group?"))) return;
+    mutate(() => window.__hh_api(`/api/admin/groups/${encodeURIComponent(name)}`, {
+      method: "DELETE"
+    }), t("admin.groups.deleted", "Group deleted."));
+  };
+
+  const addMember = async (e, groupName) => {
+    e.preventDefault();
+    const form = e.target;
+    const fd = new FormData(form);
+    const username = (fd.get("username") || "").trim();
+    const priority = parseInt(fd.get("priority"), 10) || 0;
+    if (!username) return;
+    const ok = await mutate(() => window.__hh_api(`/api/admin/groups/${encodeURIComponent(groupName)}/members`, {
+      method: "POST",
+      body: JSON.stringify({
+        username,
+        priority
+      })
+    }), t("admin.groups.member_added", "Member added."));
+    if (ok) form.reset();
+  };
+
+  const removeMember = (groupName, username) => {
+    mutate(() => window.__hh_api(`/api/admin/groups/${encodeURIComponent(groupName)}/members/${encodeURIComponent(username)}`, {
+      method: "DELETE"
+    }), t("admin.groups.member_removed", "Member removed."));
+  };
+
+  const sectionLabel = text => h("div", {
+    style: {
+      fontSize: 11.5,
+      color: "var(--text-mute)",
+      textTransform: "uppercase",
+      letterSpacing: "0.06em",
+      marginBottom: 8,
+      fontWeight: 600
+    }
+  }, text);
+
+  const groupCard = g => h("div", {
+    className: "card",
+    key: g.uuid || g.name
+  }, h("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: 12
+    }
+  }, h("div", null, h("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+      marginBottom: 4
+    }
+  }, h(Pill, {
+    tone: g.name === "admin" ? "accent" : undefined
+  }, g.name)), g.description ? h("div", {
+    style: {
+      color: "var(--text-dim)",
+      fontSize: 12.5
+    }
+  }, g.description) : null), g.name !== "admin" ? h("button", {
+    className: "btn ghost sm danger",
+    disabled: busy,
+    title: t("admin.groups.delete", "Delete group"),
+    onClick: () => deleteGroup(g.name)
+  }, h(Icon, {
+    name: "trash",
+    size: 12
+  })) : null), h("div", {
+    style: {
+      borderTop: "1px solid var(--line)",
+      paddingTop: 12,
+      marginTop: 12
+    }
+  }, sectionLabel([t("common.members"), " \xB7 ", g.members.length]), g.members.length > 0 ? h("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 6
+    }
+  }, g.members.map(m => h("div", {
+    key: m.userId || m.username,
+    style: {
+      display: "flex",
+      gap: 6,
+      alignItems: "center",
+      padding: "4px 4px 4px 10px",
+      background: "var(--surface-2)",
+      borderRadius: 999,
+      fontSize: 12
+    }
+  }, h("span", null, m.username), h("span", {
+    style: {
+      color: "var(--text-mute)",
+      fontSize: 11
+    }
+  }, t("common.priority").toLowerCase(), " ", m.priority), h("button", {
+    className: "btn ghost sm danger",
+    disabled: busy,
+    title: t("admin.groups.remove_member", "Remove member"),
+    onClick: () => removeMember(g.name, m.username),
+    style: {
+      padding: "2px 6px"
+    }
+  }, h(Icon, {
+    name: "x",
+    size: 11
+  }))))) : h("span", {
+    style: {
+      fontSize: 12,
+      color: "var(--text-mute)"
+    }
+  }, t("admin.groups.no_members"))), h("form", {
+    onSubmit: e => addMember(e, g.name),
+    style: {
+      display: "flex",
+      gap: 6,
+      marginTop: 12,
+      alignItems: "flex-end",
+      flexWrap: "wrap"
+    }
+  }, h("div", {
+    className: "field",
+    style: {
+      flex: 1,
+      minWidth: 120
+    }
+  }, h("label", null, t("common.username")), h("input", {
+    className: "input",
+    name: "username",
+    required: true,
+    placeholder: "jnovak"
+  })), h("div", {
+    className: "field",
+    style: {
+      width: 88
+    }
+  }, h("label", null, t("common.priority")), h("input", {
+    className: "input",
+    name: "priority",
+    type: "number",
+    min: "0",
+    max: "255",
+    defaultValue: "0"
+  })), h("button", {
+    className: "btn sm",
+    type: "submit",
+    disabled: busy
+  }, h(Icon, {
+    name: "plus",
+    size: 12
+  }), t("admin.groups.add_member", "Add"))));
+
+  return h("div", {
     className: "page"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, h("div", {
     className: "page-head"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", null, t("admin.groups.title")), /*#__PURE__*/React.createElement("p", {
+  }, h("div", null, h("h1", null, t("admin.groups.title")), h("p", {
     className: "lede"
-  }, t("admin.groups.lede"))), /*#__PURE__*/React.createElement("div", {
-    className: "page-actions"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, t("admin.groups.lede")))), note ? h("div", {
+    className: "note " + note.tone,
+    style: {
+      marginBottom: 14
+    }
+  }, note.text) : null, h("div", {
+    className: "card",
+    style: {
+      marginBottom: 16
+    }
+  }, h("h3", {
+    style: {
+      marginTop: 0,
+      fontSize: 14
+    }
+  }, t("admin.groups.new")), h("form", {
+    onSubmit: createGroup,
+    style: {
+      display: "flex",
+      gap: 10,
+      marginTop: 12,
+      alignItems: "flex-end",
+      flexWrap: "wrap"
+    }
+  }, h("div", {
+    className: "field",
+    style: {
+      flex: 1,
+      minWidth: 160
+    }
+  }, h("label", null, t("common.name")), h("input", {
+    className: "input",
+    name: "name",
+    required: true,
+    placeholder: "developers"
+  })), h("div", {
+    className: "field",
+    style: {
+      flex: 2,
+      minWidth: 200
+    }
+  }, h("label", null, t("common.description")), h("input", {
+    className: "input",
+    name: "description"
+  })), h("button", {
     className: "btn primary",
-    disabled: true
-  }, /*#__PURE__*/React.createElement(Icon, {
+    type: "submit",
+    disabled: busy
+  }, h(Icon, {
     name: "plus",
     size: 14
-  }), t("admin.groups.new")))), GROUPS.length === 0 ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(NotAvailableBanner, {
-    title: "Groups management not yet available",
-    body: "The backend API for groups and roles hasn't been implemented yet. This section will allow you to create custom permission groups, set priorities, and assign users."
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "coming-soon"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "ico"
-  }, /*#__PURE__*/React.createElement(Icon, {
-    name: "shield",
-    size: 16
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, "Coming soon"), /*#__PURE__*/React.createElement("p", null, "Group management, role hierarchies and member assignment will be available once the backend support is added.")))) : /*#__PURE__*/React.createElement("div", {
+  }), t("admin.groups.new")))), groups.length === 0 ? h(EmptyState, {
+    title: t("admin.groups.empty", "No groups yet"),
+    icon: "shield"
+  }) : h("div", {
     className: "grid cols-3"
-  }, GROUPS.map(g => {
-    const grants = PERMISSION_GRANTS[g.uuid] || {};
-    const granted = Object.entries(grants).filter(([, v]) => v === "allow").map(([k]) => k);
-    const members = USERS.filter(u => u.group === g.name);
-    return /*#__PURE__*/React.createElement("div", {
-      className: "card",
-      key: g.uuid
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: 12
-      }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 8,
-        alignItems: "center",
-        marginBottom: 4
-      }
-    }, /*#__PURE__*/React.createElement(Pill, {
-      tone: g.color
-    }, g.name), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 11.5,
-        color: "var(--text-mute)"
-      }
-    }, t("common.priority").toLowerCase(), " ", g.priority)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        color: "var(--text-dim)",
-        fontSize: 12.5
-      }
-    }, g.description)), /*#__PURE__*/React.createElement("button", {
-      className: "btn ghost sm"
-    }, /*#__PURE__*/React.createElement(Icon, {
-      name: "more",
-      size: 14
-    }))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        borderTop: "1px solid var(--line)",
-        paddingTop: 12,
-        marginTop: 12
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11.5,
-        color: "var(--text-mute)",
-        textTransform: "uppercase",
-        letterSpacing: "0.06em",
-        marginBottom: 8,
-        fontWeight: 600
-      }
-    }, t("common.members"), " \xB7 ", members.length), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 6
-      }
-    }, members.length > 0 ? members.map(u => /*#__PURE__*/React.createElement("div", {
-      key: u.uuid,
-      style: {
-        display: "flex",
-        gap: 6,
-        alignItems: "center",
-        padding: "4px 10px 4px 4px",
-        background: "var(--surface-2)",
-        borderRadius: 999,
-        fontSize: 12
-      }
-    }, /*#__PURE__*/React.createElement(Avatar, {
-      name: `${u.firstname} ${u.lastname}`,
-      size: 20
-    }), /*#__PURE__*/React.createElement("span", null, u.firstname, " ", u.lastname))) : /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 12,
-        color: "var(--text-mute)"
-      }
-    }, t("admin.groups.no_members")))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        borderTop: "1px solid var(--line)",
-        paddingTop: 12,
-        marginTop: 12
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11.5,
-        color: "var(--text-mute)",
-        textTransform: "uppercase",
-        letterSpacing: "0.06em",
-        marginBottom: 8,
-        fontWeight: 600
-      }
-    }, t("nav.perms"), " \xB7 ", granted.length, " / ", PERMISSIONS.length), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        color: "var(--text-dim)"
-      }
-    }, granted.length === 0 ? t("common.no_special") : granted.length === PERMISSIONS.length ? t("common.all_perms") : granted.slice(0, 3).join(", ") + (granted.length > 3 ? ` + ${granted.length - 3} ${t("common.more")}` : ""))));
-  })));
+  }, groups.map(groupCard)));
 };
 
 /*  Permissions (tri-state, role-by-role)  */

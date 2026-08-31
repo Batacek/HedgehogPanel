@@ -40,35 +40,35 @@ public class AccountTests
     }
 
     [Fact]
-    public void IsAdmin_WhenInAdminGroup_ReturnsTrue()
+    public void IsInGroup_WhenInGroup_ReturnsTrue()
     {
         var account = NewAccount(groups: new[] { new Group(Guid.NewGuid(), "admin") });
-        Assert.True(account.IsAdmin);
+        Assert.True(account.IsInGroup("admin"));
     }
 
     [Fact]
-    public void IsAdmin_WhenAdminGroupHasDifferentCasing_ReturnsTrue()
+    public void IsInGroup_WhenGroupHasDifferentCasing_ReturnsTrue()
     {
         var account = NewAccount(groups: new[] { new Group(Guid.NewGuid(), "ADMIN") });
-        Assert.True(account.IsAdmin);
+        Assert.True(account.IsInGroup("admin"));
     }
 
     [Fact]
-    public void IsAdmin_WhenOnlyNonAdminGroups_ReturnsFalse()
+    public void IsInGroup_WhenNotAMember_ReturnsFalse()
     {
         var account = NewAccount(groups: new[]
         {
             new Group(Guid.NewGuid(), "users"),
             new Group(Guid.NewGuid(), "operators")
         });
-        Assert.False(account.IsAdmin);
+        Assert.False(account.IsInGroup("admin"));
     }
 
     [Fact]
-    public void IsAdmin_WhenNoGroups_ReturnsFalse()
+    public void IsInGroup_WhenNoGroups_ReturnsFalse()
     {
         var account = NewAccount();
-        Assert.False(account.IsAdmin);
+        Assert.False(account.IsInGroup("admin"));
     }
 
     [Fact]

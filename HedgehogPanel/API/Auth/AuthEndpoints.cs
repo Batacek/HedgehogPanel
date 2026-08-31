@@ -91,7 +91,7 @@ public static class AuthEndpoints
                 };
                 
                 // Add role claims based on user groups
-                if (account.IsAdmin)
+                if (account.IsInGroup("admin"))
                 {
                     claims.Add(new Claim(ClaimTypes.Role, "Admin"));
                 }
