@@ -388,9 +388,6 @@ public static class AdminEndpoints
     public record CreateUserRequest(string Username, string Email, string Password, string? FirstName, string? MiddleName, string? LastName);
     public record CreateServerRequest(string Name, string? Description, string? OwnerUsername);
     public record UnlockUserRequest(string ClientIp);
-    public record CreateUserRequest(string Username, string Email, string Password, string? FirstName, string? MiddleName, string? LastName);
-    public record CreateServerRequest(string Name, string? Description, string? OwnerUsername);
-    public record UnlockUserRequest(string ClientIp);
     public record UpdateLockoutSettingsRequest(int MaxFailedAttempts, int LockoutMinutes);
     public record CreateGroupRequest(string Name, string? Description);
     public record AddGroupMemberRequest(string Username, int Priority);
