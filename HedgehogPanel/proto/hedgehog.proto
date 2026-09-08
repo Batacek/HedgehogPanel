@@ -4,14 +4,72 @@
 
 /*
   Protocol Name:    HedgehogPanel gRPC protocol
-  Proto version:    1.0.0
+  Proto version:    2.0.0
   Created:          2026
-  
-  Description:      .proto file for HedgehogPanel
-  GitHub:           https://github.com/batacek/HedgehogPanel & https://github.com/batacek/HedgehogDaemon
+
+  Description:      .proto file for HedgehogPanel & HedgehogDaemon
+  GitHub:           https://github.com/Batacek/HedgehogPanel & https://github.com/Batacek/HedgehogDaemon
 
   Copyright:        © 2026 batacek.eu
   License:          Apache-2.0 license (Check LICENSE file)
+*/
+
+/*
+  ── PROTOCOL VERSIONING ────────────────────────────────────────────────────
+
+  The protocol version above is independent of the daemon's own release
+  version. It changes only when this file changes; a daemon may go from
+  0.3.1 to 0.9.0 while still speaking protocol 2.0.0.
+
+  Both versions are reported by Handshake. The protocol version is also
+  reported by PublicHealthCheck, so a panel can check compatibility BEFORE
+  it attempts to pair.
+
+  Compatibility rules, evaluated on the PROTOCOL version (x.y.z):
+
+    same x, same y   Full support. Anything introduced in a higher z is
+                     simply absent on the older side.
+    same x, other y  Limited mode: pairing and health only. Callers must
+                     not offer RPCs added after the lower version.
+    other x          Incompatible. Refuse to connect.
+
+    0.y.z vs 1.y.z   Limited mode, and the user MUST be warned loudly that
+                     they are running a pre-release build that is likely to
+                     contain serious vulnerabilities, and that the daemon
+                     should be shut down and updated.
+
+  Unknown fields are dropped by protobuf itself on both sides; neither
+  implementation needs code for that.
+
+  Once the protocol reaches 1.0.0, these rules apply:
+    - never renumber or retype an existing field
+    - never reuse a field number or name; mark it `reserved` instead
+    - additive changes only
+
+  ── ERROR MODEL ────────────────────────────────────────────────────────────
+
+  Transport, authentication and authorization failures are reported as gRPC
+  status codes, never as ErrorCode:
+
+    UNAUTHENTICATED     missing, malformed or unknown token
+    PERMISSION_DENIED   valid token, but not allowed to do this
+    NOT_FOUND           the referenced object does not exist on this daemon
+    UNIMPLEMENTED       RPC not supported by this daemon version
+    FAILED_PRECONDITION daemon is not in a state where this can be done
+
+  ErrorCode is reserved for domain outcomes where a response body still
+  carries useful information for the caller.
+
+  ── AUTHENTICATION ─────────────────────────────────────────────────────────
+
+  Every RPC except PublicHealthCheck and RegisterPanel is authenticated with
+  gRPC metadata, not with fields in the request body:
+
+    authorization   "Bearer <token>"   token issued by RegisterPanel
+    x-panel-uuid    "<uuid>"           the calling panel's stable UUID
+
+  The daemon verifies these in a single interceptor. Metadata keys are
+  lowercase; this is a wire-level requirement of gRPC, not a convention.
 */
 
 syntax = "proto3";
@@ -21,16 +79,21 @@ package hedgehog.v1;
 
 enum ErrorCode {
   ERROR_NONE = 0;
-  ERROR_INVALID_TOKEN = 1;
   ERROR_INVALID_ONE_TIME_CODE = 2;
   ERROR_ALREADY_REGISTERED = 3;
-  ERROR_UNAUTHORIZED = 4;
+
+  // 1 = ERROR_INVALID_TOKEN, 4 = ERROR_UNAUTHORIZED.
+  // Both moved to gRPC status codes in protocol 2.0.0.
+  reserved 1, 4;
+  reserved "ERROR_INVALID_TOKEN", "ERROR_UNAUTHORIZED";
 }
+
 enum Status{
   STATUS_UNKNOWN = 0;
   STATUS_OK = 1;
   STATUS_ERRORED = 2;
 }
+
 enum ServerStatus {
   SERVER_STATUS_UNKNOWN = 0;
   SERVER_STATUS_ONLINE = 1;
@@ -38,6 +101,7 @@ enum ServerStatus {
   SERVER_STATUS_MAINTENANCE = 3;
 }
 
+// Unauthenticated. Also the panel's compatibility probe before pairing.
 message PublicHealthCheckRequest {
 }
 
@@ -45,15 +109,24 @@ message PublicHealthCheckResponse {
   Status status = 1;
   ErrorCode error_code = 2;
   int64 uptime = 3;
+  string protocol_version = 4;  // semver, drives the rules at the top of this file
 }
 
-message AuthContext {
-  string panel_uuid = 1;
-  string token = 2;
+// Unauthenticated: the one-time code is the credential.
+message RegisterPanelRequest {
+  string one_time_code = 1;   // One-time code from Daemon installation
+  string panel_uuid = 2;
+  string panel_display_name = 3;
+}
+
+message RegisterPanelResponse {
+  ErrorCode error_code = 1;     // ERROR_NONE on success
+  string token = 2;             // opaque; the daemon stores only its hash
+  string daemon_uuid = 3;
 }
 
 message DetailedHealthRequest {
-  AuthContext auth = 1;
+  reserved 1;  // was AuthContext auth, moved to metadata in protocol 2.0.0
 }
 
 message DetailedHealthResponse {
@@ -65,29 +138,19 @@ message DetailedHealthResponse {
   PublicHealthCheckResponse public_health_check = 6;
 }
 
-message RegisterPanelRequest {
-  string one_time_code = 1;   // One-time code from Daemon installation
-  string panel_uuid = 2;
-  string panel_display_name = 3;
-}
-
-message RegisterPanelResponse {  
-  ErrorCode error_code = 1;     // 0 for success
-  string token = 2;
-  string daemon_uuid = 3;
-}
-
 message HandshakeRequest {
-  AuthContext auth = 1;
+  reserved 1;  // was AuthContext auth, moved to metadata in protocol 2.0.0
 }
 
 message HandshakeResponse {
   string daemon_uuid = 1;
   ErrorCode error_code = 2;
+  string daemon_version = 3;    // the daemon binary's own release version, informational
+  string protocol_version = 4;  // semver, drives the rules at the top of this file
 }
 
 message StartServerRequest {
-  AuthContext auth = 1;
+  reserved 1;  // was AuthContext auth, moved to metadata in protocol 2.0.0
   string server_uuid = 2;
 }
 
@@ -96,7 +159,7 @@ message StartServerResponse {
 }
 
 message StopServerRequest {
-  AuthContext auth = 1;
+  reserved 1;  // was AuthContext auth, moved to metadata in protocol 2.0.0
   string server_uuid = 2;
 }
 
@@ -105,7 +168,7 @@ message StopServerResponse {
 }
 
 message GetServerStatusRequest {
-  AuthContext auth = 1;
+  reserved 1;  // was AuthContext auth, moved to metadata in protocol 2.0.0
   string server_uuid = 2;
 }
 
@@ -115,11 +178,19 @@ message GetServerStatusResponse {
 }
 
 service DaemonService {
+  // Unauthenticated.
   rpc PublicHealthCheck(PublicHealthCheckRequest) returns (PublicHealthCheckResponse);
   rpc RegisterPanel(RegisterPanelRequest) returns (RegisterPanelResponse);
+
+  // Authenticated via metadata; see AUTHENTICATION at the top of this file.
   rpc Handshake(HandshakeRequest) returns (HandshakeResponse);
   rpc DetailedHealth(DetailedHealthRequest) returns (DetailedHealthResponse);
   rpc StartServer(StartServerRequest) returns (StartServerResponse);
   rpc StopServer(StopServerRequest) returns (StopServerResponse);
   rpc GetServerStatus(GetServerStatusRequest) returns (GetServerStatusResponse);
+
+  // Planned, not yet implemented. Service methods carry no field numbers, so
+  // there is nothing to reserve here; these names are simply spoken for:
+  //   UnregisterPanel  - panel asks the daemon to forget it
+  //   RotateToken      - panel replaces its token without re-pairing
 }

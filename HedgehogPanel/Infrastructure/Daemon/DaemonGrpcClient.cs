@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Grpc.Core;
 using Grpc.Net.Client;
 using Hedgehog.V1;
 
@@ -16,38 +17,36 @@ public class DaemonGrpcClient : IAsyncDisposable
         _channel = channel;
     }
 
-    public async Task<DetailedHealthResponse> GetDetailedHealthAsync(Guid panelUuid, string token)
+    /// <summary>
+    /// Builds the metadata every authenticated call carries. Protocol 2.0.0 moved
+    /// authentication out of the request bodies so the daemon can verify it in a
+    /// single interceptor. gRPC requires metadata keys to be lowercase.
+    /// </summary>
+    private static Metadata AuthHeaders(Guid panelUuid, string token)
     {
-        var request = new DetailedHealthRequest
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+
+        return new Metadata
         {
-            Auth = new AuthContext
-            {
-                PanelUuid = panelUuid.ToString(),
-                Token = token
-            }
+            { "authorization", $"Bearer {token}" },
+            { "x-panel-uuid", panelUuid.ToString() }
         };
-        return await _client.DetailedHealthAsync(request);
     }
 
-    public async Task<HandshakeResponse> HandshakeAsync(Guid panelUuid, string token)
-    {
-        var request = new HandshakeRequest
-        {
-            Auth = new AuthContext
-            {
-                PanelUuid = panelUuid.ToString(),
-                Token = token
-            }
-        };
-        return await _client.HandshakeAsync(request);
-    }
-
+    /// <summary>
+    /// Unauthenticated. Doubles as the compatibility probe: the response carries the
+    /// daemon's protocol version, so the panel can check it before trying to pair.
+    /// </summary>
     public async Task<PublicHealthCheckResponse> PublicHealthCheckAsync()
     {
         var request = new PublicHealthCheckRequest();
         return await _client.PublicHealthCheckAsync(request);
     }
 
+    /// <summary>
+    /// Unauthenticated: the one-time code is the credential. Returns the token that
+    /// every later call must present.
+    /// </summary>
     public async Task<RegisterPanelResponse> RegisterPanelAsync(string oneTimeCode, Guid panelUuid, string panelDisplayName)
     {
         var request = new RegisterPanelRequest
@@ -59,46 +58,32 @@ public class DaemonGrpcClient : IAsyncDisposable
         return await _client.RegisterPanelAsync(request);
     }
 
+    public async Task<HandshakeResponse> HandshakeAsync(Guid panelUuid, string token)
+    {
+        return await _client.HandshakeAsync(new HandshakeRequest(), AuthHeaders(panelUuid, token));
+    }
+
+    public async Task<DetailedHealthResponse> GetDetailedHealthAsync(Guid panelUuid, string token)
+    {
+        return await _client.DetailedHealthAsync(new DetailedHealthRequest(), AuthHeaders(panelUuid, token));
+    }
+
     public async Task<StartServerResponse> StartServerAsync(Guid panelUuid, string token, Guid serverUuid)
     {
-        var request = new StartServerRequest
-        {
-            Auth = new AuthContext
-            {
-                PanelUuid = panelUuid.ToString(),
-                Token = token
-            },
-            ServerUuid = serverUuid.ToString()
-        };
-        return await _client.StartServerAsync(request);
+        var request = new StartServerRequest { ServerUuid = serverUuid.ToString() };
+        return await _client.StartServerAsync(request, AuthHeaders(panelUuid, token));
     }
 
     public async Task<StopServerResponse> StopServerAsync(Guid panelUuid, string token, Guid serverUuid)
     {
-        var request = new StopServerRequest
-        {
-            Auth = new AuthContext
-            {
-                PanelUuid = panelUuid.ToString(),
-                Token = token
-            },
-            ServerUuid = serverUuid.ToString()
-        };
-        return await _client.StopServerAsync(request);
+        var request = new StopServerRequest { ServerUuid = serverUuid.ToString() };
+        return await _client.StopServerAsync(request, AuthHeaders(panelUuid, token));
     }
 
     public async Task<GetServerStatusResponse> GetServerStatusAsync(Guid panelUuid, string token, Guid serverUuid)
     {
-        var request = new GetServerStatusRequest
-        {
-            Auth = new AuthContext
-            {
-                PanelUuid = panelUuid.ToString(),
-                Token = token
-            },
-            ServerUuid = serverUuid.ToString()
-        };
-        return await _client.GetServerStatusAsync(request);
+        var request = new GetServerStatusRequest { ServerUuid = serverUuid.ToString() };
+        return await _client.GetServerStatusAsync(request, AuthHeaders(panelUuid, token));
     }
 
     public ValueTask DisposeAsync()
