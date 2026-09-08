@@ -11,6 +11,7 @@ using HedgehogPanel.API;
 using HedgehogPanel.Application.Repositories;
 using HedgehogPanel.Application.Services;
 using HedgehogPanel.Application.Persistence;
+using HedgehogPanel.Infrastructure.Identity;
 using HedgehogPanel.Application.Contracts.Logging;
 using HedgehogPanel.Infrastructure.Persistence.PostgreSQL.Repositories;
 using HedgehogPanel.Infrastructure.Persistence.PostgreSQL;
@@ -116,6 +117,13 @@ public static class HedgehogStartupExtensions
         builder.Services.AddSingleton<IAccountService, AccountService>();
         builder.Services.AddSingleton<IServerService, ServerService>();
         builder.Services.AddSingleton<IGroupService, GroupService>();
+
+        // One instance in both roles: the hosted service resolves the identity at
+        // startup, and IPanelIdentityProvider hands that same instance to callers.
+        builder.Services.AddSingleton<IPanelIdentityStore, FilePanelIdentityStore>();
+        builder.Services.AddSingleton<PanelIdentityProvider>();
+        builder.Services.AddSingleton<IPanelIdentityProvider>(sp => sp.GetRequiredService<PanelIdentityProvider>());
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<PanelIdentityProvider>());
 
         // gRPC client factory for daemon communication
         builder.Services.AddSingleton<IDaemonGrpcClientFactory, DaemonGrpcClientFactory>();
