@@ -55,4 +55,35 @@ public class ServerTests
         Assert.Equal(ServerStatus.Offline, server.Status);
         Assert.Equal("desc", server.Description);
     }
+
+    [Fact]
+    public void Constructor_WithoutNode_LeavesTheLinkEmpty()
+    {
+        var server = new Server(Guid.NewGuid(), "srv", "host.hedgehog.batacek.eu");
+
+        Assert.Null(server.NodeUuid);
+    }
+
+    [Fact]
+    public void Constructor_StoresTheNodeLink()
+    {
+        var node = Guid.NewGuid();
+
+        var server = new Server(Guid.NewGuid(), "srv", "host.hedgehog.batacek.eu", nodeUuid: node);
+
+        Assert.Equal(node, server.NodeUuid);
+    }
+
+    [Fact]
+    public void AssignNode_SetsAndClearsTheLink()
+    {
+        var node = Guid.NewGuid();
+        var server = new Server(Guid.NewGuid(), "srv", "host.hedgehog.batacek.eu");
+
+        server.AssignNode(node);
+        Assert.Equal(node, server.NodeUuid);
+
+        server.AssignNode(null);
+        Assert.Null(server.NodeUuid);
+    }
 }
