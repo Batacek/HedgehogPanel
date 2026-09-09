@@ -3,3 +3,6 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+
+# Machine-local panel identity; must never be shared between installs
+**/panel-identity

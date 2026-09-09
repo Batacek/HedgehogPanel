@@ -10,6 +10,16 @@ public class HedgehogConfig
     public LoggingConfig Logging { get; set; } = new();
     public DatabaseConfig Database { get; set; } = new();
     public CacheConfig Cache { get; set; } = new();
+    public IdentityConfig Identity { get; set; } = new();
+}
+
+public class IdentityConfig
+{
+    /// <summary>
+    /// Where this install keeps its panel UUID. Machine-local on purpose: see
+    /// <see cref="HedgehogPanel.Application.Persistence.IPanelIdentityStore"/>.
+    /// </summary>
+    public string FilePath { get; set; } = "data/panel-identity";
 }
 
 public class ServerConfig
