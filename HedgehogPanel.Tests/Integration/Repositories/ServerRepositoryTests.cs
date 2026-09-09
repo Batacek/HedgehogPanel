@@ -3,10 +3,14 @@ using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using HedgehogPanel.Application.Contracts.Logging;
 using HedgehogPanel.Application.Persistence;
 using HedgehogPanel.Application.Repositories;
+using HedgehogPanel.Infrastructure.Configuration;
 using HedgehogPanel.Infrastructure.Persistence.PostgreSQL.Repositories;
+using HedgehogPanel.Infrastructure.Persistence.Store;
 using HedgehogPanel.Tests.Integration.TestFixtures;
+using Moq;
 using Npgsql;
 using Xunit;
 
@@ -18,6 +22,7 @@ public class ServerRepositoryTests
     private readonly PostgreSqlFixture _fixture;
     private readonly IServerRepository _serverRepository;
     private readonly IAccountRepository _accountRepository;
+    private readonly INodeRepository _nodeRepository;
 
     public ServerRepositoryTests(PostgreSqlFixture fixture)
     {
@@ -25,6 +30,10 @@ public class ServerRepositoryTests
         var connectionFactory = new TestConnectionFactory(_fixture.ConnectionString);
         _serverRepository = new ServerRepository(connectionFactory);
         _accountRepository = new AccountRepository(connectionFactory);
+
+        var config = new HedgehogConfig { Cache = new CacheConfig { Enabled = false } };
+        var store = new InMemoryStore(new Mock<ILoggerService>().Object, config);
+        _nodeRepository = new NodeRepository(connectionFactory, store, config);
     }
 
     [Fact]
@@ -323,6 +332,85 @@ public class ServerRepositoryTests
 
         // Assert
         Assert.False(result);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithoutANode_LeavesTheLinkEmpty()
+    {
+        // Arrange
+        await _fixture.CleanDatabaseAsync();
+        var server = TestDataBuilder.CreateTestServer("Unlinked", "unlinked.hedgehog.batacek.eu");
+
+        // Act
+        await _serverRepository.CreateAsync(server);
+
+        // Assert — a dedicated server hosting virtual ones runs no daemon of its own.
+        var retrieved = await _serverRepository.GetByGuidAsync(server.Guid);
+        Assert.NotNull(retrieved);
+        Assert.Null(retrieved.NodeUuid);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithANode_RoundTripsTheLink()
+    {
+        // Arrange
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("LinkedNode", "192.168.1.50", 50051);
+        await _nodeRepository.CreateAsync(node);
+        var server = TestDataBuilder.CreateTestServer("Linked", "linked.hedgehog.batacek.eu", nodeUuid: node.Guid);
+
+        // Act
+        await _serverRepository.CreateAsync(server);
+
+        // Assert
+        var retrieved = await _serverRepository.GetByGuidAsync(server.Guid);
+        Assert.NotNull(retrieved);
+        Assert.Equal(node.Guid, retrieved.NodeUuid);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AssignsAndClearsTheNodeLink()
+    {
+        // Arrange
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("MovableNode", "192.168.1.51", 50051);
+        await _nodeRepository.CreateAsync(node);
+        var server = TestDataBuilder.CreateTestServer("Movable", "movable.hedgehog.batacek.eu");
+        await _serverRepository.CreateAsync(server);
+
+        // Act — assign
+        server.AssignNode(node.Guid);
+        await _serverRepository.UpdateAsync(server);
+
+        // Assert
+        var linked = await _serverRepository.GetByGuidAsync(server.Guid);
+        Assert.Equal(node.Guid, linked!.NodeUuid);
+
+        // Act — and clear again
+        server.AssignNode(null);
+        await _serverRepository.UpdateAsync(server);
+
+        // Assert
+        var unlinked = await _serverRepository.GetByGuidAsync(server.Guid);
+        Assert.Null(unlinked!.NodeUuid);
+    }
+
+    [Fact]
+    public async Task ListAsync_CarriesTheNodeLink()
+    {
+        // Arrange — the nodes page reads the relation from this direction.
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("ListedNode", "192.168.1.52", 50051);
+        await _nodeRepository.CreateAsync(node);
+        var server = TestDataBuilder.CreateTestServer("Listed", "listed.hedgehog.batacek.eu", nodeUuid: node.Guid);
+        await _serverRepository.CreateAsync(server);
+
+        // Act
+        var servers = await _serverRepository.ListAsync(100, 0);
+
+        // Assert
+        var listed = servers.Single(s => s.Guid == server.Guid);
+        Assert.Equal(node.Guid, listed.NodeUuid);
     }
 
     private class TestConnectionFactory : IDbConnectionFactory
