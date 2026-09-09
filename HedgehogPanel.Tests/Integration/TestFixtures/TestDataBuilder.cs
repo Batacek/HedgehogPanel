@@ -24,13 +24,15 @@ public static class TestDataBuilder
         string? name = null,
         string? hostname = null,
         int port = 22,
-        Guid? guid = null)
+        Guid? guid = null,
+        Guid? nodeUuid = null)
     {
         return new Server(
             guid ?? Guid.NewGuid(),
             name ?? $"TestServer_{Guid.NewGuid():N}",
             hostname ?? "test.hedgehog.batacek.eu",
-            port
+            port,
+            nodeUuid: nodeUuid
         );
     }
 
