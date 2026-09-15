@@ -57,7 +57,8 @@ public static class ServerEndpoints
                         name = server.Name,
                         owner = owner ?? "Unknown",
                         role = owner != null ? "Owner" : "Member",
-                        status = server.Status.ToString()
+                        status = server.Status.ToString(),
+                        nodeUuid = server.NodeUuid?.ToString()
                     });
                 }
                 Logger.Information("Returning {Count} servers for user {UserGuid}.", serverList.Count, userGuid);

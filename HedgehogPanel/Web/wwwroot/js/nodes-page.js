@@ -39,7 +39,7 @@ const NodesPage = ({
   }) : /*#__PURE__*/React.createElement("table", {
     className: "table"
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Node"), /*#__PURE__*/React.createElement("th", null, "Server"), /*#__PURE__*/React.createElement("th", null, t("common.address")), /*#__PURE__*/React.createElement("th", null, t("common.status")), /*#__PURE__*/React.createElement("th", null, t("common.daemon")), /*#__PURE__*/React.createElement("th", null, t("common.last_seen")), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, NODES.map(n => {
-    const server = SERVERS.find(s => s.uuid === n.server_uuid);
+    const server = SERVERS.find(s => s.node_uuid === n.uuid);
     return /*#__PURE__*/React.createElement("tr", {
       key: n.uuid
     }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {

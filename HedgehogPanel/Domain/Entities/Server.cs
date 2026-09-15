@@ -16,7 +16,13 @@ public class Server
     public DateTime? CreatedAt { get; private set; }
     public uint RowVersion { get; set; }
 
-    public Server(Guid guid, string name, string hostname, int daemonPort = 22, ServerStatus status = ServerStatus.Unknown, byte? localId = null, string? description = null, DateTime? lastSeen = null, DateTime? createdAt = null, uint rowVersion = 0)
+    /// <summary>
+    /// The node whose daemon manages this server, or null when no daemon runs on it.
+    /// A dedicated server hosting virtual ones typically has none of its own.
+    /// </summary>
+    public Guid? NodeUuid { get; private set; }
+
+    public Server(Guid guid, string name, string hostname, int daemonPort = 22, ServerStatus status = ServerStatus.Unknown, byte? localId = null, string? description = null, DateTime? lastSeen = null, DateTime? createdAt = null, uint rowVersion = 0, Guid? nodeUuid = null)
     {
         Guid = guid;
         Name = name ?? throw new ArgumentNullException(nameof(name));
@@ -28,6 +34,15 @@ public class Server
         LastSeen = lastSeen;
         CreatedAt = createdAt;
         RowVersion = rowVersion;
+        NodeUuid = nodeUuid;
+    }
+
+    /// <summary>
+    /// Points this server at the node running its daemon, or clears the link with null.
+    /// </summary>
+    public void AssignNode(Guid? nodeUuid)
+    {
+        NodeUuid = nodeUuid;
     }
 
     public void UpdateStatus(ServerStatus newStatus)

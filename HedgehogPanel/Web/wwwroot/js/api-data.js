@@ -249,7 +249,7 @@ window.__hh_load_data = async () => {
         parent: null,
         ip: "—",
         daemon_port: 0,
-        node_uuid: null,
+        node_uuid: s.nodeUuid || null,
         role: (s.role || "viewer").toLowerCase(),
         owner: s.owner || "—",
         status,
@@ -268,7 +268,6 @@ window.__hh_load_data = async () => {
     NODES = raw.map(n => ({
       uuid: n.id,
       name: n.name,
-      server_uuid: null,
       ip: n.ipAddress || "—",
       port: n.port || 0,
       status: (n.status != null ? String(n.status) : "unknown").toLowerCase(),

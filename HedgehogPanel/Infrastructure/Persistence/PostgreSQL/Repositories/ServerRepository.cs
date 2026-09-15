@@ -23,7 +23,7 @@ public class ServerRepository : IServerRepository
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
 
-        const string sql = "SELECT uuid, name, hostname, daemon_port, description, created_at FROM servers WHERE uuid = @id LIMIT 1";
+        const string sql = "SELECT uuid, name, hostname, daemon_port, description, created_at, node_uuid FROM servers WHERE uuid = @id LIMIT 1";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@id", guid);
         await using var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync());
@@ -37,7 +37,7 @@ public class ServerRepository : IServerRepository
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
 
-        const string sql = "SELECT uuid, name, hostname, daemon_port, description, created_at FROM servers ORDER BY name LIMIT @limit OFFSET @offset";
+        const string sql = "SELECT uuid, name, hostname, daemon_port, description, created_at, node_uuid FROM servers ORDER BY name LIMIT @limit OFFSET @offset";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@limit", limit);
         cmd.Parameters.AddWithValue("@offset", offset);
@@ -56,13 +56,14 @@ public class ServerRepository : IServerRepository
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
 
-        const string sql = "INSERT INTO servers (uuid, name, hostname, daemon_port, description) VALUES (@id, @n, @h, @p, @d)";
+        const string sql = "INSERT INTO servers (uuid, name, hostname, daemon_port, description, node_uuid) VALUES (@id, @n, @h, @p, @d, @node)";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@id", server.Guid);
         cmd.Parameters.AddWithValue("@n", server.Name);
         cmd.Parameters.AddWithValue("@d", (object?)server.Description ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@h", server.Hostname);
         cmd.Parameters.AddWithValue("@p", server.DaemonPort);
+        cmd.Parameters.AddWithValue("@node", (object?)server.NodeUuid ?? DBNull.Value);
 
         return await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
     }
@@ -72,12 +73,13 @@ public class ServerRepository : IServerRepository
         using var conn = await _connectionFactory.CreateConnectionAsync();
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
 
-        const string sql = "UPDATE servers SET name = @n, hostname = @h, daemon_port = @p, description = @d WHERE uuid = @id";
+        const string sql = "UPDATE servers SET name = @n, hostname = @h, daemon_port = @p, description = @d, node_uuid = @node WHERE uuid = @id";
         await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
         cmd.Parameters.AddWithValue("@n", server.Name);
         cmd.Parameters.AddWithValue("@h", server.Hostname);
         cmd.Parameters.AddWithValue("@p", server.DaemonPort);
         cmd.Parameters.AddWithValue("@d", (object?)server.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@node", (object?)server.NodeUuid ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@id", server.Guid);
 
         return await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
@@ -100,7 +102,7 @@ public class ServerRepository : IServerRepository
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
 
         const string sql = @"
-            SELECT s.uuid, s.name, s.hostname, s.daemon_port, s.description, s.created_at 
+            SELECT s.uuid, s.name, s.hostname, s.daemon_port, s.description, s.created_at, s.node_uuid 
             FROM servers s
             JOIN server_owners so ON s.uuid = so.server_uuid
             WHERE so.user_uuid = @userGuid
@@ -127,7 +129,7 @@ public class ServerRepository : IServerRepository
         if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
 
         const string sql = @"
-            SELECT s.uuid, s.name, s.hostname, s.daemon_port, s.description, s.created_at 
+            SELECT s.uuid, s.name, s.hostname, s.daemon_port, s.description, s.created_at, s.node_uuid 
             FROM servers s
             LEFT JOIN server_owners so ON s.uuid = so.server_uuid
             WHERE so.server_uuid IS NULL
@@ -200,7 +202,8 @@ public class ServerRepository : IServerRepository
             localId: null, // (not in DB yet)
             description: reader.IsDBNull(4) ? null : reader.GetString(4),
             lastSeen: null, // (not in DB yet)
-            createdAt: reader.IsDBNull(5) ? (DateTime?)null : reader.GetDateTime(5)
+            createdAt: reader.IsDBNull(5) ? (DateTime?)null : reader.GetDateTime(5),
+            nodeUuid: reader.IsDBNull(6) ? (Guid?)null : reader.GetGuid(6)
         );
     }
 }
