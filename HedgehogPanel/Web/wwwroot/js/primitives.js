@@ -39,6 +39,18 @@ const StatusPill = ({
     degraded: {
       tone: "warn",
       label: "Degraded"
+    },
+    unpaired: {
+      tone: "default",
+      label: "Unpaired"
+    },
+    incompatible: {
+      tone: "warn",
+      label: "Incompatible"
+    },
+    unknown: {
+      tone: "default",
+      label: "Unknown"
     }
   };
   const m = map[status] || {
