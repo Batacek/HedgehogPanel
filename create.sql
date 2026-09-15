@@ -15,7 +15,7 @@
   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝
 
   Database Name:    hedgehogdb
-  Version:          1.2.2
+  Version:          1.3.0
   Created:          2026
   
   Description:      Database for Server Management System
@@ -83,10 +83,15 @@ CREATE TABLE nodes (
                        ip_address VARCHAR NOT NULL,
                        port INT NOT NULL,
                        description TEXT,
-                       status VARCHAR,
-                       registration_token VARCHAR,
+                       status VARCHAR NOT NULL DEFAULT 'Unpaired',
+                       daemon_uuid UUID UNIQUE,
+                       daemon_version VARCHAR,
+                       protocol_version VARCHAR,
+                       daemon_token VARCHAR,
+                       last_error TEXT,
                        last_seen TIMESTAMP,
-                       created_at TIMESTAMP DEFAULT now()
+                       created_at TIMESTAMP DEFAULT now(),
+                       CHECK (status IN ('Unknown', 'Unpaired', 'Online', 'Offline', 'Incompatible'))
 );
 
 -- Servers
