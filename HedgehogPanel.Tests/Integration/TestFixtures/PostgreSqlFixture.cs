@@ -44,9 +44,22 @@ public class PostgreSqlFixture : IAsyncLifetime
             // Database already exists (race condition), ignore
         }
 
-        // Always ensure schema is applied (check if users table exists)
         await using var testConnection = new NpgsqlConnection(ConnectionString);
         await testConnection.OpenAsync();
+
+        // pgcrypto is needed by the seed data and by AccountRepository at runtime. A database
+        // created above never has it, so it is ensured on every run rather than left to create.sql.
+        try
+        {
+            await using var extensionCmd = new NpgsqlCommand("CREATE EXTENSION IF NOT EXISTS pgcrypto", testConnection);
+            await extensionCmd.ExecuteNonQueryAsync();
+        }
+        catch (Npgsql.PostgresException ex) when (ex.SqlState == "23505")
+        {
+            // Extension created by a concurrent run (race condition), ignore
+        }
+
+        // Always ensure schema is applied (check if users table exists)
         await using var tableCheckCmd = new NpgsqlCommand(
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'",
             testConnection);
@@ -74,11 +87,6 @@ public class PostgreSqlFixture : IAsyncLifetime
         }
 
         var sql = await File.ReadAllTextAsync(sqlPath);
-        
-        // Remove CREATE EXTENSION line to avoid duplicate key error if extension already exists
-        var lines = sql.Split('\n');
-        var filteredLines = System.Linq.Enumerable.Where(lines, l => !l.TrimStart().StartsWith("CREATE EXTENSION"));
-        sql = string.Join('\n', filteredLines);
 
         await using var connection = new NpgsqlConnection(ConnectionString);
         await connection.OpenAsync();
