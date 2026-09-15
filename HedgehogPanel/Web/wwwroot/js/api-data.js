@@ -273,7 +273,7 @@ window.__hh_load_data = async () => {
       status: (n.status != null ? String(n.status) : "unknown").toLowerCase(),
       lastSeen: n.lastSeen ? new Date(n.lastSeen).getTime() : Date.now(),
       description: n.description || "",
-      version: "—"
+      version: n.daemonVersion || "—"
     }));
   }
 
