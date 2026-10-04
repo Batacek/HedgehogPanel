@@ -47,6 +47,10 @@ public class DaemonConfig
     public string ApiVersion { get; set; } = "v1";
     public int RequestTimeoutSeconds { get; set; } = 10;
     public int RetryCount { get; set; } = 3;
+
+    /// <summary>Wait before retry n is n times this, so retries back off linearly.</summary>
+    public int RetryDelayMilliseconds { get; set; } = 200;
+
     public bool AllowInsecureConnections { get; set; } = false;
 }
 
