@@ -127,6 +127,7 @@ public static class HedgehogStartupExtensions
 
         // gRPC client factory for daemon communication
         builder.Services.AddSingleton<IDaemonGrpcClientFactory, DaemonGrpcClientFactory>();
+        builder.Services.AddSingleton<INodeDaemonService, NodeDaemonService>();
 
         logger.Information("Database services and repositories registered.");
 
