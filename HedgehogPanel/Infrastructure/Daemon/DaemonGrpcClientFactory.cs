@@ -14,7 +14,7 @@ public class DaemonGrpcClientFactory : IDaemonGrpcClientFactory
         _config = config;
     }
 
-    public DaemonGrpcClient CreateClient(string daemonAddress)
+    public IDaemonGrpcClient CreateClient(string daemonAddress)
     {
         var channelOptions = new GrpcChannelOptions();
 
