@@ -5,7 +5,10 @@ using System.Threading.Tasks;
 using HedgehogPanel.Application.Contracts.Logging;
 using HedgehogPanel.Application.Persistence;
 using HedgehogPanel.Application.Repositories;
+using HedgehogPanel.Domain.Entities;
+using HedgehogPanel.Domain.Enums;
 using HedgehogPanel.Infrastructure.Configuration;
+using HedgehogPanel.Infrastructure.Exceptions;
 using HedgehogPanel.Infrastructure.Persistence.PostgreSQL.Repositories;
 using HedgehogPanel.Infrastructure.Persistence.Store;
 using HedgehogPanel.Tests.Integration.TestFixtures;
@@ -130,7 +133,7 @@ public class NodeRepositoryTests
             "192.168.1.200",
             50052,
             "Updated description",
-            "Online"
+            NodeStatus.Online
         );
         var result = await _repository.UpdateAsync(updatedNode);
 
@@ -236,6 +239,89 @@ public class NodeRepositoryTests
         // Assert
         Assert.Equal(3, result.Count);
         // Nodes should be ordered (implementation dependent - typically by created_at)
+    }
+
+    [Fact]
+    public async Task CreateAsync_NewNode_StartsUnpairedWithNoDaemonState()
+    {
+        // Arrange
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("FreshNode", "192.168.1.70", 50051);
+
+        // Act
+        await _repository.CreateAsync(node);
+
+        // Assert
+        var retrieved = await _repository.GetByGuidAsync(node.Guid);
+        Assert.NotNull(retrieved);
+        Assert.Equal(NodeStatus.Unpaired, retrieved.Status);
+        Assert.Null(retrieved.DaemonUuid);
+        Assert.Null(retrieved.DaemonVersion);
+        Assert.Null(retrieved.ProtocolVersion);
+        Assert.Null(retrieved.DaemonToken);
+        Assert.Null(retrieved.LastError);
+        Assert.False(retrieved.IsPaired);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_RoundTripsDaemonState()
+    {
+        // Arrange
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("PairedNode", "192.168.1.71", 50051);
+        await _repository.CreateAsync(node);
+        var daemonUuid = Guid.NewGuid();
+        var paired = new Node(node.Guid, node.Name, node.IpAddress, node.Port,
+            status: NodeStatus.Online, daemonUuid: daemonUuid, daemonVersion: "0.1.0",
+            protocolVersion: "2.0.0", daemonToken: "token-value", lastError: "timed out");
+
+        // Act
+        await _repository.UpdateAsync(paired);
+
+        // Assert
+        var retrieved = await _repository.GetByGuidAsync(node.Guid);
+        Assert.NotNull(retrieved);
+        Assert.Equal(NodeStatus.Online, retrieved.Status);
+        Assert.Equal(daemonUuid, retrieved.DaemonUuid);
+        Assert.Equal("0.1.0", retrieved.DaemonVersion);
+        Assert.Equal("2.0.0", retrieved.ProtocolVersion);
+        Assert.Equal("token-value", retrieved.DaemonToken);
+        Assert.Equal("timed out", retrieved.LastError);
+        Assert.True(retrieved.IsPaired);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_TheSameDaemonOnTwoNodes_IsRejected()
+    {
+        // Arrange - one daemon paired under two node rows would split its state.
+        await _fixture.CleanDatabaseAsync();
+        var daemonUuid = Guid.NewGuid();
+        var first = TestDataBuilder.CreateTestNode("FirstNode", "192.168.1.72", 50051);
+        var second = TestDataBuilder.CreateTestNode("SecondNode", "192.168.1.73", 50051);
+        await _repository.CreateAsync(first);
+        await _repository.CreateAsync(second);
+        await _repository.UpdateAsync(new Node(first.Guid, first.Name, first.IpAddress, first.Port, daemonUuid: daemonUuid));
+
+        // Act & Assert
+        await Assert.ThrowsAsync<DatabaseConstraintException>(() =>
+            _repository.UpdateAsync(new Node(second.Guid, second.Name, second.IpAddress, second.Port, daemonUuid: daemonUuid)));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_KeepingTheSameName_Succeeds()
+    {
+        // Arrange - pairing and health checks update a node without renaming it.
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("SteadyNode", "192.168.1.74", 50051);
+        await _repository.CreateAsync(node);
+
+        // Act
+        var result = await _repository.UpdateAsync(new Node(node.Guid, node.Name, node.IpAddress, node.Port, description: "edited"));
+
+        // Assert
+        Assert.True(result);
+        var retrieved = await _repository.GetByGuidAsync(node.Guid);
+        Assert.Equal("edited", retrieved!.Description);
     }
 
     private class TestConnectionFactory : IDbConnectionFactory

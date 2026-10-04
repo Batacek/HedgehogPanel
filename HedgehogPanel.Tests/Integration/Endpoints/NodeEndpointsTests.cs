@@ -41,7 +41,7 @@ public class NodeEndpointsTests : IClassFixture<HedgehogWebApplicationFactory>
         var client = await AuthenticatedClientAsync("node_create");
 
         var create = await client.PostAsJsonAsync("/api/nodes",
-            new { name = "Node-A", ipAddress = "10.0.0.1", port = 50051, description = "first", status = "Online", registrationToken = (string?)null });
+            new { name = "Node-A", ipAddress = "10.0.0.1", port = 50051, description = "first" });
         Assert.Equal(HttpStatusCode.OK, create.StatusCode);
 
         var list = await client.GetAsync("/api/nodes");
@@ -57,10 +57,10 @@ public class NodeEndpointsTests : IClassFixture<HedgehogWebApplicationFactory>
         var client = await AuthenticatedClientAsync("node_dup");
 
         await client.PostAsJsonAsync("/api/nodes",
-            new { name = "Node-Dup", ipAddress = "10.0.0.2", port = 50051, description = (string?)null, status = (string?)null, registrationToken = (string?)null });
+            new { name = "Node-Dup", ipAddress = "10.0.0.2", port = 50051, description = (string?)null });
 
         var duplicate = await client.PostAsJsonAsync("/api/nodes",
-            new { name = "Node-Dup", ipAddress = "10.0.0.3", port = 50052, description = (string?)null, status = (string?)null, registrationToken = (string?)null });
+            new { name = "Node-Dup", ipAddress = "10.0.0.3", port = 50052, description = (string?)null });
 
         Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
     }
@@ -71,11 +71,11 @@ public class NodeEndpointsTests : IClassFixture<HedgehogWebApplicationFactory>
         var client = await AuthenticatedClientAsync("node_update");
 
         var create = await client.PostAsJsonAsync("/api/nodes",
-            new { name = "Node-Upd", ipAddress = "10.0.0.4", port = 50051, description = (string?)null, status = (string?)null, registrationToken = (string?)null });
+            new { name = "Node-Upd", ipAddress = "10.0.0.4", port = 50051, description = (string?)null });
         var id = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
 
         var update = await client.PutAsJsonAsync($"/api/nodes/{id}",
-            new { name = "Node-Upd-2", ipAddress = "10.0.0.5", port = 50060, description = "changed", status = "Offline", registrationToken = (string?)null });
+            new { name = "Node-Upd-2", ipAddress = "10.0.0.5", port = 50060, description = "changed" });
 
         Assert.Equal(HttpStatusCode.OK, update.StatusCode);
     }
@@ -86,7 +86,7 @@ public class NodeEndpointsTests : IClassFixture<HedgehogWebApplicationFactory>
         var client = await AuthenticatedClientAsync("node_update_missing");
 
         var update = await client.PutAsJsonAsync($"/api/nodes/{Guid.NewGuid()}",
-            new { name = "Ghost", ipAddress = "10.0.0.9", port = 50051, description = (string?)null, status = (string?)null, registrationToken = (string?)null });
+            new { name = "Ghost", ipAddress = "10.0.0.9", port = 50051, description = (string?)null });
 
         Assert.Equal(HttpStatusCode.NotFound, update.StatusCode);
     }
@@ -97,7 +97,7 @@ public class NodeEndpointsTests : IClassFixture<HedgehogWebApplicationFactory>
         var client = await AuthenticatedClientAsync("node_delete");
 
         var create = await client.PostAsJsonAsync("/api/nodes",
-            new { name = "Node-Del", ipAddress = "10.0.0.6", port = 50051, description = (string?)null, status = (string?)null, registrationToken = (string?)null });
+            new { name = "Node-Del", ipAddress = "10.0.0.6", port = 50051, description = (string?)null });
         var id = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
 
         var delete = await client.DeleteAsync($"/api/nodes/{id}");
@@ -117,10 +117,11 @@ public class NodeEndpointsTests : IClassFixture<HedgehogWebApplicationFactory>
 
     private async Task<HttpClient> AuthenticatedClientAsync(string prefix)
     {
+        // Creating, updating and deleting nodes requires the Admin role.
         await _db.CleanDatabaseAsync();
-        var user = await EndpointTestSupport.SeedUserAsync(_db.ConnectionString, prefix);
+        var admin = await EndpointTestSupport.SeedAdminAsync(_db.ConnectionString, prefix);
         var client = EndpointTestSupport.NewClient(_factory);
-        await EndpointTestSupport.LoginAsync(client, user.Username);
+        await EndpointTestSupport.LoginAsync(client, admin.Username);
         return client;
     }
 }
