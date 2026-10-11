@@ -9,6 +9,7 @@ using HedgehogPanel.Domain.Enums;
 using HedgehogPanel.Infrastructure.Configuration;
 using HedgehogPanel.Infrastructure.Persistence.Store;
 using Npgsql;
+using NpgsqlTypes;
 using HedgehogPanel.Domain.Exceptions;
 using HedgehogPanel.Infrastructure.Exceptions;
 
@@ -138,7 +139,7 @@ public class NodeRepository : INodeRepository
         cmd.Parameters.AddWithValue("@protocolVersion", (object?)node.ProtocolVersion ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@token", (object?)node.DaemonToken ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@lastError", (object?)node.LastError ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@lastSeen", (object?)node.LastSeen ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lastSeen", NpgsqlDbType.Timestamp, ToTimestamp(node.LastSeen));
 
         var result = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
         
@@ -179,7 +180,7 @@ public class NodeRepository : INodeRepository
         cmd.Parameters.AddWithValue("@protocolVersion", (object?)node.ProtocolVersion ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@token", (object?)node.DaemonToken ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@lastError", (object?)node.LastError ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("@lastSeen", (object?)node.LastSeen ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lastSeen", NpgsqlDbType.Timestamp, ToTimestamp(node.LastSeen));
         cmd.Parameters.AddWithValue("@id", node.Guid);
 
         var result = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
@@ -191,6 +192,63 @@ public class NodeRepository : INodeRepository
             InvalidateListCache();
         }
         
+        return result;
+    }
+
+    public async Task<bool> SavePairingAsync(Node node)
+    {
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
+        const string sql = "UPDATE nodes SET status = @status, daemon_uuid = @daemonUuid, daemon_version = @daemonVersion, protocol_version = @protocolVersion, daemon_token = @token, last_error = @lastError, last_seen = @lastSeen WHERE uuid = @id";
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
+        cmd.Parameters.AddWithValue("@status", node.Status.ToString());
+        cmd.Parameters.AddWithValue("@daemonUuid", (object?)node.DaemonUuid ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@daemonVersion", (object?)node.DaemonVersion ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@protocolVersion", (object?)node.ProtocolVersion ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@token", (object?)node.DaemonToken ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lastError", (object?)node.LastError ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lastSeen", NpgsqlDbType.Timestamp, ToTimestamp(node.LastSeen));
+        cmd.Parameters.AddWithValue("@id", node.Guid);
+
+        var result = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
+
+        if (result && _config.Cache.Enabled)
+        {
+            // Dropped rather than replaced: the node passed in may be older than the stored
+            // name or address, which this method does not write.
+            _store.Remove<Node>(node.Guid);
+            InvalidateListCache();
+        }
+
+        return result;
+    }
+
+    public async Task<bool> SaveDaemonStateAsync(Node node)
+    {
+        if (node.DaemonToken == null) return false;
+
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
+        const string sql = "UPDATE nodes SET status = @status, daemon_version = @daemonVersion, protocol_version = @protocolVersion, last_error = @lastError, last_seen = @lastSeen WHERE uuid = @id AND daemon_token = @token";
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
+        cmd.Parameters.AddWithValue("@status", node.Status.ToString());
+        cmd.Parameters.AddWithValue("@daemonVersion", (object?)node.DaemonVersion ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@protocolVersion", (object?)node.ProtocolVersion ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lastError", (object?)node.LastError ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lastSeen", NpgsqlDbType.Timestamp, ToTimestamp(node.LastSeen));
+        cmd.Parameters.AddWithValue("@id", node.Guid);
+        cmd.Parameters.AddWithValue("@token", node.DaemonToken);
+
+        var result = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteNonQueryAsync()) > 0;
+
+        if (result && _config.Cache.Enabled)
+        {
+            _store.Remove<Node>(node.Guid);
+            InvalidateListCache();
+        }
+
         return result;
     }
 
@@ -231,6 +289,13 @@ public class NodeRepository : INodeRepository
             createdAt: reader.IsDBNull(12) ? (DateTime?)null : reader.GetDateTime(12)
         );
     }
+
+    /// <summary>
+    /// <c>last_seen</c> is a timestamp without time zone holding UTC. Npgsql refuses to write a
+    /// UTC <see cref="DateTime"/> into such a column, so the kind is dropped here.
+    /// </summary>
+    private static object ToTimestamp(DateTime? value) =>
+        value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Unspecified) : DBNull.Value;
 
     private void InvalidateListCache()
     {
