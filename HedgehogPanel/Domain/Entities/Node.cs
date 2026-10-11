@@ -43,4 +43,47 @@ public class Node
         Status = newStatus;
         LastSeen = DateTime.UtcNow;
     }
+
+    // The methods below return a changed copy instead of changing this node. Repositories
+    // cache node instances and hand the same one to every request, so a change made in
+    // place would be visible before it is stored, and would stay even if storing it fails.
+
+    /// <summary>
+    /// A copy paired with the given daemon. The token replaces any earlier one. The daemon
+    /// version is kept only when the same daemon is paired again, because it describes that daemon.
+    /// </summary>
+    public Node WithPairing(Guid daemonUuid, string daemonToken, string protocolVersion, DateTime seenAt) =>
+        new(guid: Guid, name: Name, ipAddress: IpAddress, port: Port, description: Description,
+            status: NodeStatus.Online,
+            daemonUuid: daemonUuid,
+            daemonVersion: daemonUuid == DaemonUuid ? DaemonVersion : null,
+            protocolVersion: protocolVersion,
+            daemonToken: daemonToken ?? throw new ArgumentNullException(nameof(daemonToken)),
+            lastError: null,
+            lastSeen: seenAt,
+            createdAt: CreatedAt);
+
+    /// <summary>A copy recording that the daemon answered, and what it reported.</summary>
+    public Node WithContact(NodeStatus status, string daemonVersion, string protocolVersion, DateTime seenAt) =>
+        new(guid: Guid, name: Name, ipAddress: IpAddress, port: Port, description: Description,
+            status: status,
+            daemonUuid: DaemonUuid,
+            daemonVersion: daemonVersion,
+            protocolVersion: protocolVersion,
+            daemonToken: DaemonToken,
+            lastError: null,
+            lastSeen: seenAt,
+            createdAt: CreatedAt);
+
+    /// <summary>A copy recording that the daemon could not be used. When it was last seen stays as it was.</summary>
+    public Node WithFailure(NodeStatus status, string error) =>
+        new(guid: Guid, name: Name, ipAddress: IpAddress, port: Port, description: Description,
+            status: status,
+            daemonUuid: DaemonUuid,
+            daemonVersion: DaemonVersion,
+            protocolVersion: ProtocolVersion,
+            daemonToken: DaemonToken,
+            lastError: error,
+            lastSeen: LastSeen,
+            createdAt: CreatedAt);
 }
