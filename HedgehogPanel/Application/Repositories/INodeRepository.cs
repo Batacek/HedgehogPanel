@@ -28,6 +28,20 @@ public interface INodeRepository
     Task<bool> UpdateAsync(Node node);
 
     /// <summary>
+    /// Stores the daemon identity and token from pairing, together with the daemon state.
+    /// Leaves the fields an operator edits alone.
+    /// </summary>
+    Task<bool> SavePairingAsync(Node node);
+
+    /// <summary>
+    /// Stores the outcome of contacting a paired daemon: status, versions, last error and
+    /// when it was last seen. Only applies while the node still holds the token that was
+    /// used, so a result that arrives after the node was paired again is dropped.
+    /// Returns false when nothing was stored.
+    /// </summary>
+    Task<bool> SaveDaemonStateAsync(Node node);
+
+    /// <summary>
     /// Deletes a node by its globally unique identifier (GUID).
     /// </summary>
     Task<bool> DeleteAsync(Guid guid);

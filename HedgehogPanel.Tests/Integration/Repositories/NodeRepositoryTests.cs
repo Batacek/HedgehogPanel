@@ -324,6 +324,134 @@ public class NodeRepositoryTests
         Assert.Equal("edited", retrieved!.Description);
     }
 
+    [Fact]
+    public async Task SavePairingAsync_StoresTheDaemonButNotTheEditableFields()
+    {
+        // Arrange - the node passed in is stale: its name was changed in the meantime.
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("PairingNode", "192.168.1.75", 50051);
+        await _repository.CreateAsync(node);
+        await _repository.UpdateAsync(new Node(node.Guid, "RenamedNode", node.IpAddress, node.Port));
+        var daemonUuid = Guid.NewGuid();
+        var seenAt = new DateTime(2026, 10, 11, 9, 30, 0, DateTimeKind.Utc);
+
+        // Act
+        var result = await _repository.SavePairingAsync(node.WithPairing(daemonUuid, "token-value", "2.0.0", seenAt));
+
+        // Assert
+        Assert.True(result);
+        var retrieved = await _repository.GetByGuidAsync(node.Guid);
+        Assert.NotNull(retrieved);
+        Assert.Equal("RenamedNode", retrieved.Name);
+        Assert.Equal(NodeStatus.Online, retrieved.Status);
+        Assert.Equal(daemonUuid, retrieved.DaemonUuid);
+        Assert.Equal("token-value", retrieved.DaemonToken);
+        Assert.Equal("2.0.0", retrieved.ProtocolVersion);
+        Assert.Equal(seenAt, DateTime.SpecifyKind(retrieved.LastSeen!.Value, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public async Task SavePairingAsync_WhenNotExists_ReturnsFalse()
+    {
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("GhostNode", "192.168.1.76", 50051);
+
+        var result = await _repository.SavePairingAsync(node.WithPairing(Guid.NewGuid(), "token", "2.0.0", DateTime.UtcNow));
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task SavePairingAsync_ADaemonPairedAsAnotherNode_IsRejected()
+    {
+        await _fixture.CleanDatabaseAsync();
+        var daemonUuid = Guid.NewGuid();
+        var first = TestDataBuilder.CreateTestNode("FirstPaired", "192.168.1.77", 50051);
+        var second = TestDataBuilder.CreateTestNode("SecondPaired", "192.168.1.78", 50051);
+        await _repository.CreateAsync(first);
+        await _repository.CreateAsync(second);
+        await _repository.SavePairingAsync(first.WithPairing(daemonUuid, "first", "2.0.0", DateTime.UtcNow));
+
+        await Assert.ThrowsAsync<DatabaseConstraintException>(() =>
+            _repository.SavePairingAsync(second.WithPairing(daemonUuid, "second", "2.0.0", DateTime.UtcNow)));
+    }
+
+    [Fact]
+    public async Task SaveDaemonStateAsync_StoresTheOutcomeButNotTheToken()
+    {
+        // Arrange
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("StateNode", "192.168.1.79", 50051);
+        await _repository.CreateAsync(node);
+        var paired = node.WithPairing(Guid.NewGuid(), "token-value", "2.0.0", DateTime.UtcNow);
+        await _repository.SavePairingAsync(paired);
+        var seenAt = new DateTime(2026, 10, 11, 10, 0, 0, DateTimeKind.Utc);
+
+        // Act
+        var result = await _repository.SaveDaemonStateAsync(paired.WithContact(NodeStatus.Incompatible, "0.2.0", "3.0.0", seenAt));
+
+        // Assert
+        Assert.True(result);
+        var retrieved = await _repository.GetByGuidAsync(node.Guid);
+        Assert.NotNull(retrieved);
+        Assert.Equal(NodeStatus.Incompatible, retrieved.Status);
+        Assert.Equal("0.2.0", retrieved.DaemonVersion);
+        Assert.Equal("3.0.0", retrieved.ProtocolVersion);
+        Assert.Equal("token-value", retrieved.DaemonToken);
+        Assert.Equal(seenAt, DateTime.SpecifyKind(retrieved.LastSeen!.Value, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public async Task SaveDaemonStateAsync_AfterTheNodeWasPairedAgain_StoresNothing()
+    {
+        // Arrange - a ping that started with the old token finishes after a new pairing.
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("RepairedNode", "192.168.1.80", 50051);
+        await _repository.CreateAsync(node);
+        var daemonUuid = Guid.NewGuid();
+        var oldPairing = node.WithPairing(daemonUuid, "old-token", "2.0.0", DateTime.UtcNow);
+        await _repository.SavePairingAsync(oldPairing);
+        await _repository.SavePairingAsync(node.WithPairing(daemonUuid, "new-token", "2.0.0", DateTime.UtcNow));
+
+        // Act
+        var result = await _repository.SaveDaemonStateAsync(oldPairing.WithFailure(NodeStatus.Unknown, "rejected"));
+
+        // Assert
+        Assert.False(result);
+        var retrieved = await _repository.GetByGuidAsync(node.Guid);
+        Assert.Equal(NodeStatus.Online, retrieved!.Status);
+        Assert.Null(retrieved.LastError);
+        Assert.Equal("new-token", retrieved.DaemonToken);
+    }
+
+    [Fact]
+    public async Task SaveDaemonStateAsync_OnAnUnpairedNode_StoresNothing()
+    {
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("LonelyNode", "192.168.1.81", 50051);
+        await _repository.CreateAsync(node);
+
+        var result = await _repository.SaveDaemonStateAsync(node.WithFailure(NodeStatus.Offline, "unreachable"));
+
+        Assert.False(result);
+        Assert.Equal(NodeStatus.Unpaired, (await _repository.GetByGuidAsync(node.Guid))!.Status);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithALastSeenInUtc_IsStored()
+    {
+        // Npgsql refuses UTC values for a timestamp column unless the repository converts them.
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("UtcNode", "192.168.1.82", 50051);
+        await _repository.CreateAsync(node);
+        node.UpdateStatus(NodeStatus.Online);
+
+        var result = await _repository.UpdateAsync(node);
+
+        Assert.True(result);
+        Assert.NotNull((await _repository.GetByGuidAsync(node.Guid))!.LastSeen);
+    }
+
     private class TestConnectionFactory : IDbConnectionFactory
     {
         private readonly string _connectionString;
