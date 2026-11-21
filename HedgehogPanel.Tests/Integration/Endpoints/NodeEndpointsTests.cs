@@ -5,7 +5,14 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
+using HedgehogPanel.Application.Contracts.Logging;
+using HedgehogPanel.Domain.Entities;
+using HedgehogPanel.Domain.Enums;
+using HedgehogPanel.Infrastructure.Configuration;
+using HedgehogPanel.Infrastructure.Persistence.PostgreSQL.Repositories;
+using HedgehogPanel.Infrastructure.Persistence.Store;
 using HedgehogPanel.Tests.Integration.TestFixtures;
+using Moq;
 using Xunit;
 
 namespace HedgehogPanel.Tests.Integration.Endpoints;
@@ -114,6 +121,36 @@ public class NodeEndpointsTests : IClassFixture<HedgehogWebApplicationFactory>
 
         Assert.Equal(HttpStatusCode.NotFound, delete.StatusCode);
     }
+
+    [Fact]
+    public async Task GetNodes_JudgesTheProtocolVersionOfEachNode()
+    {
+        var client = await AuthenticatedClientAsync("node_compat");
+        var connectionFactory = new EndpointTestConnectionFactory(_db.ConnectionString);
+        var config = new HedgehogConfig { Cache = new CacheConfig { Enabled = false } };
+        var repository = new NodeRepository(connectionFactory, new InMemoryStore(new Mock<ILoggerService>().Object, config), config);
+
+        await repository.CreateAsync(TestDataBuilder.CreateTestNode("Compat-Unpaired", "10.0.1.1", 50051));
+        await repository.CreateAsync(PairedAt("Compat-Full", "10.0.1.2", "2.0.0"));
+        await repository.CreateAsync(PairedAt("Compat-Limited", "10.0.1.3", "2.1.0"));
+        await repository.CreateAsync(PairedAt("Compat-Incompatible", "10.0.1.4", "1.0.0"));
+
+        var list = await client.GetAsync("/api/nodes");
+
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        var body = await list.Content.ReadFromJsonAsync<JsonElement>();
+        string? Compatibility(string name) => body.EnumerateArray()
+            .Single(e => e.GetProperty("name").GetString() == name)
+            .GetProperty("compatibility").GetString();
+        Assert.Null(Compatibility("Compat-Unpaired"));
+        Assert.Equal("Full", Compatibility("Compat-Full"));
+        Assert.Equal("Limited", Compatibility("Compat-Limited"));
+        Assert.Equal("Incompatible", Compatibility("Compat-Incompatible"));
+    }
+
+    private static Node PairedAt(string name, string ipAddress, string protocolVersion) =>
+        new(Guid.NewGuid(), name, ipAddress, 50051, status: NodeStatus.Online, daemonUuid: Guid.NewGuid(),
+            daemonVersion: "0.1.0", protocolVersion: protocolVersion, daemonToken: "token");
 
     private async Task<HttpClient> AuthenticatedClientAsync(string prefix)
     {
