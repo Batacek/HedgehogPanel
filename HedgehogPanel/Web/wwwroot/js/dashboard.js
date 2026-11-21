@@ -179,7 +179,7 @@ const DashboardPage = ({
       status: n.status
     })), /*#__PURE__*/React.createElement("td", {
       className: "mono"
-    }, fmtAgo(n.lastSeen), " ago"), /*#__PURE__*/React.createElement("td", {
+    }, n.lastSeen == null ? "\u2014" : fmtAgo(n.lastSeen) + " ago"), /*#__PURE__*/React.createElement("td", {
       className: "actions"
     }, /*#__PURE__*/React.createElement("button", {
       className: "btn ghost sm"

@@ -453,6 +453,24 @@ public class NodeRepositoryTests
     }
 
     [Fact]
+    public async Task GetByGuidAsync_ReadsLastSeenAsUtc()
+    {
+        // The column holds UTC without a zone; a value read back as "unspecified" would be shown in local time.
+        await _fixture.CleanDatabaseAsync();
+        var node = TestDataBuilder.CreateTestNode("UtcRead", "192.168.1.95", 50051);
+        await _repository.CreateAsync(node);
+        var lastSeen = new DateTime(2026, 11, 21, 12, 30, 0, DateTimeKind.Utc);
+        await _repository.SavePairingAsync(new Node(node.Guid, node.Name, node.IpAddress, node.Port,
+            status: NodeStatus.Online, daemonUuid: Guid.NewGuid(), daemonToken: "token", lastSeen: lastSeen));
+
+        var retrieved = await _repository.GetByGuidAsync(node.Guid);
+
+        Assert.NotNull(retrieved);
+        Assert.Equal(DateTimeKind.Utc, retrieved.LastSeen!.Value.Kind);
+        Assert.Equal(lastSeen, retrieved.LastSeen.Value);
+    }
+
+    [Fact]
     public async Task ListPairedAsync_ReturnsOnlyNodesWithATokenOrderedByName()
     {
         await _fixture.CleanDatabaseAsync();

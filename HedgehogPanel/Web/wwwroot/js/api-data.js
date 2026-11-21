@@ -271,9 +271,15 @@ window.__hh_load_data = async () => {
       ip: n.ipAddress || "—",
       port: n.port || 0,
       status: (n.status != null ? String(n.status) : "unknown").toLowerCase(),
-      lastSeen: n.lastSeen ? new Date(n.lastSeen).getTime() : Date.now(),
+      /* null until a daemon has answered; showing "now" for a node never seen would be a lie */
+      lastSeen: n.lastSeen ? new Date(n.lastSeen).getTime() : null,
       description: n.description || "",
-      version: n.daemonVersion || "—"
+      version: n.daemonVersion || null,
+      paired: !!n.paired,
+      daemonUuid: n.daemonUuid || null,
+      protocolVersion: n.protocolVersion || null,
+      compatibility: n.compatibility || null,
+      lastError: n.lastError || null
     }));
   }
 
