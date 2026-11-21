@@ -129,6 +129,7 @@ public static class HedgehogStartupExtensions
         builder.Services.AddSingleton<IDaemonGrpcClientFactory, DaemonGrpcClientFactory>();
         builder.Services.AddSingleton<INodeDaemonService, NodeDaemonService>();
         builder.Services.AddSingleton<INodeConnectionService, NodeConnectionService>();
+        builder.Services.AddHostedService<NodeHealthPoller>();
 
         logger.Information("Database services and repositories registered.");
 
