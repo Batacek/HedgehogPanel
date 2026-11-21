@@ -82,6 +82,7 @@ const TRANSLATIONS = {
     /* common buttons */
     "btn.save": "Uložit změny",
     "btn.cancel": "Zrušit",
+    "btn.close": "Zavřít",
     "btn.create": "Vytvořit",
     "btn.delete": "Smazat",
     "btn.refresh": "Obnovit",
@@ -432,6 +433,7 @@ const TRANSLATIONS = {
     "login.err_invalid": "Invalid credentials.",
     "btn.save": "Save changes",
     "btn.cancel": "Cancel",
+    "btn.close": "Close",
     "btn.create": "Create",
     "btn.delete": "Delete",
     "btn.refresh": "Refresh",
