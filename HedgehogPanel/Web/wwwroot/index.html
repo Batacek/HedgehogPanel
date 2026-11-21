@@ -821,7 +821,8 @@ a { color: inherit; text-decoration: none; }
   border-radius: var(--r-md);
   padding: var(--card-pad);
 }
-.card.flush { padding: 0; overflow: hidden; }
+/* clip, not hidden: hidden would make the card the scroll container that a table's sticky header sticks to, pushing it over the first row */
+.card.flush { padding: 0; overflow: clip; }
 .card-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px;
