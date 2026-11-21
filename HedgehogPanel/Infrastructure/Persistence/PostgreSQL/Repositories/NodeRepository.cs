@@ -305,7 +305,8 @@ public class NodeRepository : INodeRepository
             protocolVersion: reader.IsDBNull(8) ? null : reader.GetString(8),
             daemonToken: reader.IsDBNull(9) ? null : reader.GetString(9),
             lastError: reader.IsDBNull(10) ? null : reader.GetString(10),
-            lastSeen: reader.IsDBNull(11) ? (DateTime?)null : reader.GetDateTime(11),
+            // Stored as UTC without a zone; marking the kind makes it serialize with a Z, so a browser does not read it as local time.
+            lastSeen: reader.IsDBNull(11) ? (DateTime?)null : DateTime.SpecifyKind(reader.GetDateTime(11), DateTimeKind.Utc),
             createdAt: reader.IsDBNull(12) ? (DateTime?)null : reader.GetDateTime(12)
         );
     }
