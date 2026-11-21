@@ -18,6 +18,12 @@ public interface INodeRepository
     Task<IReadOnlyList<Node>> ListAsync(int limit, int offset);
 
     /// <summary>
+    /// Retrieves every node that holds a daemon token, ordered by name. Not paginated: the
+    /// background checks have to reach all of them.
+    /// </summary>
+    Task<IReadOnlyList<Node>> ListPairedAsync();
+
+    /// <summary>
     /// Creates a new node in the repository.
     /// </summary>
     Task<bool> CreateAsync(Node node);

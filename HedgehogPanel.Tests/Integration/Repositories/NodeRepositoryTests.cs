@@ -452,6 +452,39 @@ public class NodeRepositoryTests
         Assert.NotNull((await _repository.GetByGuidAsync(node.Guid))!.LastSeen);
     }
 
+    [Fact]
+    public async Task ListPairedAsync_ReturnsOnlyNodesWithATokenOrderedByName()
+    {
+        await _fixture.CleanDatabaseAsync();
+        var unpaired = TestDataBuilder.CreateTestNode("AUnpaired", "192.168.1.91", 50051);
+        var pairedB = TestDataBuilder.CreateTestNode("BPaired", "192.168.1.92", 50051);
+        var pairedA = TestDataBuilder.CreateTestNode("APaired", "192.168.1.93", 50051);
+        await _repository.CreateAsync(unpaired);
+        await _repository.CreateAsync(pairedB);
+        await _repository.CreateAsync(pairedA);
+        foreach (var node in new[] { pairedB, pairedA })
+        {
+            await _repository.SavePairingAsync(new Node(node.Guid, node.Name, node.IpAddress, node.Port,
+                status: NodeStatus.Online, daemonUuid: Guid.NewGuid(), daemonToken: $"token-{node.Name}"));
+        }
+
+        var paired = await _repository.ListPairedAsync();
+
+        Assert.Equal(new[] { "APaired", "BPaired" }, paired.Select(n => n.Name).ToArray());
+        Assert.All(paired, n => Assert.NotNull(n.DaemonToken));
+    }
+
+    [Fact]
+    public async Task ListPairedAsync_WithoutPairedNodes_ReturnsAnEmptyList()
+    {
+        await _fixture.CleanDatabaseAsync();
+        await _repository.CreateAsync(TestDataBuilder.CreateTestNode("OnlyUnpaired", "192.168.1.94", 50051));
+
+        var paired = await _repository.ListPairedAsync();
+
+        Assert.Empty(paired);
+    }
+
     private class TestConnectionFactory : IDbConnectionFactory
     {
         private readonly string _connectionString;

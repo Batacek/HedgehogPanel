@@ -52,6 +52,15 @@ public class DaemonConfig
     public int RetryDelayMilliseconds { get; set; } = 200;
 
     public bool AllowInsecureConnections { get; set; } = false;
+
+    /// <summary>Whether the panel checks on its paired daemons in the background.</summary>
+    public bool PollingEnabled { get; set; } = true;
+
+    /// <summary>Pause between the end of one round of checks and the start of the next. At least one second.</summary>
+    public int PollIntervalSeconds { get; set; } = 30;
+
+    /// <summary>How many daemons are checked at the same time, so one that never answers does not hold up the rest.</summary>
+    public int PollMaxParallelism { get; set; } = 8;
 }
 
 public class SecurityConfig

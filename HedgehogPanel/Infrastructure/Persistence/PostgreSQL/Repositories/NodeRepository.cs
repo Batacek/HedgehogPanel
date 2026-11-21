@@ -111,6 +111,26 @@ public class NodeRepository : INodeRepository
         return list;
     }
 
+    public async Task<IReadOnlyList<Node>> ListPairedAsync()
+    {
+        // Straight from the database and not from the cache: the caller is a periodic check
+        // that has to see tokens as they are now, and it reads every paired node anyway.
+        using var conn = await _connectionFactory.CreateConnectionAsync();
+        if (conn is not NpgsqlConnection npgsqlConn) throw new InvalidOperationException("Expected NpgsqlConnection");
+
+        const string sql = "SELECT uuid, name, ip_address, port, description, status, daemon_uuid, daemon_version, protocol_version, daemon_token, last_error, last_seen, created_at FROM nodes WHERE daemon_token IS NOT NULL ORDER BY name";
+        await using var cmd = new NpgsqlCommand(sql, npgsqlConn);
+
+        var list = new List<Node>();
+        await using var reader = await DbExceptionGuard.ExecuteAsync(() => cmd.ExecuteReaderAsync());
+        while (await reader.ReadAsync())
+        {
+            list.Add(MapNode(reader));
+        }
+
+        return list;
+    }
+
     public async Task<bool> CreateAsync(Node node)
     {
         using var conn = await _connectionFactory.CreateConnectionAsync();
