@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using HedgehogPanel.Application.Repositories;
 using HedgehogPanel.Application.Contracts.Logging;
+using HedgehogPanel.Application.Services;
 using HedgehogPanel.Infrastructure.Logging;
 using HedgehogPanel.Domain.Entities;
 using Microsoft.AspNetCore.Builder;
@@ -42,6 +43,9 @@ public static class NodeEndpoints
                         daemonUuid = node.DaemonUuid?.ToString(),
                         daemonVersion = node.DaemonVersion,
                         protocolVersion = node.ProtocolVersion,
+                        // Judged here so the browser does not have to repeat the version rules;
+                        // null until a daemon has reported a protocol version.
+                        compatibility = node.ProtocolVersion == null ? null : DaemonProtocol.Evaluate(node.ProtocolVersion).ToString(),
                         lastError = node.LastError,
                         lastSeen = node.LastSeen,
                         createdAt = node.CreatedAt
