@@ -29,6 +29,9 @@ public class HedgehogWebApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("DB_PASSWORD", TestDatabaseConfig.Password);
         Environment.SetEnvironmentVariable("DB_NAME", TestDatabaseConfig.Database);
         Environment.SetEnvironmentVariable("JWT_SECRET", TestDatabaseConfig.JwtSecret);
+
+        // The background checks would change node status behind the tests' backs.
+        Environment.SetEnvironmentVariable("Daemon__PollingEnabled", "false");
     }
 
     /// <summary>When true, antiforgery validation is replaced with a no-op so POST/PUT/DELETE
